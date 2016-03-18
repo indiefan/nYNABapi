@@ -1,31 +1,16 @@
 import copy
 import json
 
-from enum import Enum
-
 from pynYNAB import KeyGenerator
 from pynYNAB.schema.Fields import EntityField, EntityListField, PropertyField
 from pynYNAB.config import get_logger
-from pynYNAB.utils import equal_dicts
 
 
 def undef():
     pass
 
 
-class AccountTypes(Enum):
-    undef = 'undef'
-    Checking = 'Checking'
-    Savings = 'Savings'
-    CreditCard = 'CreditCard'
-    Cash = 'Cash'
-    LineOfCredit = 'LineOfCredit'
-    Paypal = 'Paypal'
-    MerchantAccount = 'MerchantAccount'
-    InvestmentAccount = 'InvestmentAccount'
-    Mortgage = 'Mortgage'
-    OtherAsset = 'OtherAsset'
-    OtherLiability = 'OtherLiability'
+
 
 on_budget_dict = dict(
     undef=None,
@@ -93,6 +78,7 @@ def addprop(inst, name, method, setter=None, cleaner=None ):
         setattr(cls, 'clean_'+name,cleaner)
     return p
 
+
 class Entity(object):
     def __init__(self, *args, **kwargs):
         for namefield,field in self.AllFields.items():
@@ -123,13 +109,6 @@ class Entity(object):
 
     def __hash__(self):
         return self.hash()
-
-    def hash(self):
-        t=tuple((k,v) for k, v in self.getdict().items() if k not in ignored_fields_for_hash)
-        try:
-            return hash(frozenset(t))
-        except TypeError:
-            pass
 
     def __str__(self):
         return str(self.getdict())

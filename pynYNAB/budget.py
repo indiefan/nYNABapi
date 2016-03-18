@@ -1,4 +1,4 @@
-from pynYNAB.Entity import Entity, undef, on_budget_dict, AccountTypes
+from pynYNAB.Entity import Entity, undef, on_budget_dict
 from pynYNAB.schema.Fields import EntityField, AmountField, DateField, AccountTypeField, EntityListField, DatesField, \
     PropertyField
 

@@ -1,12 +1,12 @@
 import json
 import unittest
 
-from pynYNAB.Entity import Entity, ComplexEncoder, ListofEntities, undef, AccountTypes, addprop
-from pynYNAB.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
+from pynYNAB.Entity import Entity, ComplexEncoder, ListofEntities, addprop
+from pynYNAB.db.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
     MonthlyAccountCalculation, MonthlyBudget, MonthlySubcategoryBudget, MonthlyBudgetCalculation, \
     MonthlySubcategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
     ScheduledTransaction, Setting, Subtransaction, TransactionGroup
-from pynYNAB.catalog import BudgetVersion, CatalogBudget, User, UserBudget, UserSetting
+from pynYNAB.db.catalog import BudgetVersion, CatalogBudget, User, UserBudget, UserSetting
 from pynYNAB.roots import Budget, Catalog
 from pynYNAB.schema.Fields import EntityField, EntityListField, DateField, PropertyField
 
@@ -145,21 +145,7 @@ class Test1(unittest.TestCase):
 
         for typ in types:
             obj = typ()
-            self.assertIsInstance(obj.AllFields, dict)
-            for f in obj.AllFields:
-                self.assertTrue(isinstance(obj.AllFields[f], EntityField) or isinstance(obj.AllFields[f], EntityListField))
-            self.assertTrue(checkequal(obj.getdict().keys(), obj.AllFields.keys()))
 
-            valuesleft=list(obj.getdict().values())
-            valuesright=[getattr(obj, f) for f in obj.AllFields.keys()]
-
-            unhashableleft = [v for v in valuesleft if v.__hash__ is None]
-            hashableleft = [v for v in valuesleft if v.__hash__ is not None]
-
-            unhashableright = [v for v in valuesright if v.__hash__ is None]
-            hashableright = [v for v in valuesright if v.__hash__ is not None]
-            self.assertEqual(set(hashableleft),set(hashableright))
-            self.assertEqual(unhashableleft,unhashableright)
 
     def testupdatechangedentities(self):
         obj = Budget()
@@ -177,7 +163,7 @@ class Test1(unittest.TestCase):
     def testappend(self):
 
         obj = Budget()
-        account = Account(None)
+        account = Account()
         obj.be_accounts.append(account)
         assert (len(obj.be_accounts) == 1)
         assert (list(obj.be_accounts)[-1] == account)
@@ -188,7 +174,7 @@ class Test1(unittest.TestCase):
         self.assertRaises(ValueError, lambda: obj.be_accounts.append(transaction))
 
     def testCE_nochange(self):
-        obj = Transaction(None)
+        obj = Budget()
         self.assertEqual(obj.get_changed_entities(), {})
 
     def testCE_simpleadd(self):
@@ -216,7 +202,6 @@ class Test1(unittest.TestCase):
         # tests no exceptions when getting the string representation of some entities
         obj = Transaction()
         obj.__str__()
-        obj.__unicode__()
 
         obj2 = Budget()
         obj2.be_accounts.__str__()

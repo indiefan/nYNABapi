@@ -1,11 +1,12 @@
-from pynYNAB.Entity import Entity, ListofEntities, obj_from_dict
-from pynYNAB.budget import MasterCategory, Setting, MonthlyBudgetCalculation, AccountMapping, Subtransaction, \
+from pynYNAB.Entity import Entity
+from pynYNAB.Entity import ListofEntities, obj_from_dict
+from pynYNAB.db.budget import MasterCategory, Setting, MonthlyBudgetCalculation, AccountMapping, Subtransaction, \
     ScheduledSubtransaction, Subcategory, PayeeLocation, AccountCalculation, MonthlyAccountCalculation, \
     MonthlySubcategoryBudgetCalculation, ScheduledTransaction, Payee, MonthlySubcategoryBudget, PayeeRenameCondition, \
-    Account, MonthlyBudget, TransactionGroup, DateField
-from pynYNAB.budget import Transaction
-from pynYNAB.catalog import UserBudget, UserSetting, BudgetVersion, User, CatalogBudget
-from pynYNAB.schema.Fields import EntityListField
+    Account, MonthlyBudget, TransactionGroup
+from pynYNAB.db.budget import Transaction
+from pynYNAB.db.catalog import UserBudget, UserSetting, BudgetVersion, User, CatalogBudget
+from pynYNAB.schema.Fields import EntityListField, DateField
 
 
 def knowledge_change(changed_entities):
@@ -37,7 +38,7 @@ class Root(Entity):
                     except KeyError:
                         changed_entities[name] = [obj]
             else:
-                changed_entities[name] = self.AllFields[name].posttreat(value)
+                changed_entities[name] = value
 
         self.update_from_changed_entities(changed_entities)
         self.server_knowledge_of_device = syncData['server_knowledge_of_device']
@@ -45,6 +46,10 @@ class Root(Entity):
         if self.server_knowledge_of_device > self.knowledge:
             self.knowledge = self.server_knowledge_of_device
         self.device_knowledge_of_server = syncData['current_server_knowledge']
+
+    def get_changed_entities(self):
+        firstrun = {namefield: getattr(self, namefield).get_changed_entities() for namefield in self.ListFields}
+        return {namefield: value for namefield, value in firstrun.items() if value != []}
 
     def get_request_data(self):
         changed_entities = self.get_changed_entities()
@@ -60,7 +65,7 @@ class Budget(Root):
         super(Budget, self).__init__()
         self.budget_version_id = None
 
-    Fields = dict(
+    Fields=dict(
         be_transactions=EntityListField(Transaction),
         be_master_categories=EntityListField(MasterCategory),
         be_settings=EntityListField(Setting),

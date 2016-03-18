@@ -55,6 +55,7 @@ setup(
     install_requires=[
         'configargparse',
         'enum34',
+        'sqlalchemy',
         'ofxtools',
         'pynab',
         'requests',

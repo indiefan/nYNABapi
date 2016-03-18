@@ -59,8 +59,9 @@ class nYnabConnection(object):
         self.lastrequest_elapsed=r.elapsed
         js = r.json()
         if r.status_code != 200:
-             self.logger.debug('non-200 HTTP code: %s ' % r.text)
+            self.logger.debug('non-200 HTTP code: %s ' % r.text)
         if js['error'] is None:
+            self.logger.debug('JSON returned from the API: %s'%js)
             return js
         else:
             error=js['error']

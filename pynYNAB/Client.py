@@ -1,11 +1,11 @@
 from functools import wraps
 
-from pynYNAB.budget import Payee, Transaction
-from pynYNAB.catalog import BudgetVersion
+from pynYNAB.db.budget import Payee, Transaction
+from pynYNAB.db.catalog import BudgetVersion
 from pynYNAB.config import get_logger
 from pynYNAB.connection import NYnabConnectionError, nYnabConnection
 from pynYNAB.utils import chunk
-from pynYNAB.roots import Budget, Catalog
+from pynYNAB.db.roots import Budget, Catalog
 
 
 def clientfromargs(args, reset=False):
