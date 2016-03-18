@@ -9,7 +9,7 @@ import csv
 import sys
 
 import jsontableschema
-from jsontableschema.exceptions import InvalidSchemaError
+from jsontableschema.exceptions import InvalidSchemaError, InvalidCastError, ConversionError
 from jsontableschema.model import SchemaModel
 
 from pynYNAB.Client import clientfromargs
@@ -125,17 +125,25 @@ def do_csvimport(args,client=None):
 
     get_logger(args).debug('OK starting the import from %s '%os.path.abspath(args.csvfile))
     with open(args.csvfile, 'r') as inputfile:
+        for i in range(nheaders):
+            inputfile.readline()
         for row in csv.reader(inputfile):
             if sys.version[0] == '2':
                 row = [cell.decode('utf-8') for cell in row]
+            #row=[cell.strip() for cell in row]
             get_logger(args).debug('read line %s' % row)
-            result = csvrow(*list(schema.convert_row(*row, fail_fast=True)))
+            try:
+                result = csvrow(*list(schema.convert_row(*row, fail_fast=True)))
+            except InvalidCastError:
+                continue
+            except ConversionError:
+                continue
             if 'account' in schema.headers:
                 entities_account_id = getaccount(result.account).id
             if 'inflow' in schema.headers and 'outflow' in schema.headers:
                 amount = result.inflow - result.outflow
             elif 'amount' in schema.headers:
-                amout = result.amount
+                amount = result.amount
             else:
                 get_logger(args).error('Couldn''t find this account: %s' % args.accountname)
                 exit(-1)
@@ -157,7 +165,7 @@ def do_csvimport(args,client=None):
 
             transaction=Transaction(
                 entities_account_id=entities_account_id,
-                amount=amountfun(result),
+                amount=amount,
                 date=result.date,
                 entities_payee_id=entities_payee_id,
                 entities_subcategory_id=entities_subcategory_id,
