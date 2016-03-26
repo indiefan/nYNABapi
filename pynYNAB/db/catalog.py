@@ -5,7 +5,7 @@ from sqlalchemy.types import String
 from sqlalchemy import Column as OriginalColumn
 
 from pynYNAB.db import Base
-from pynYNAB.db.Entity import Entity, Column
+from pynYNAB.db.Entity import Entity, Column, Boolean
 from pynYNAB.roots import Root, ListOfEntities
 
 
@@ -50,6 +50,7 @@ class User(CatalogEntity, Base):
     trial_expires_on = Column(String())
     email = Column(String())
     feature_flags = Column(String())
+    is_subscribed = Column(Boolean())
 
 
 class BudgetVersion(CatalogEntity, Base):
