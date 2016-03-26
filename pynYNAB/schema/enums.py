@@ -15,7 +15,8 @@ class AccountTypes(Enum):
     OtherAsset = 'OtherAsset'
     OtherLiability = 'OtherLiability'
 
+
 class Sources(Enum):
-    Scheduler= "Scheduler"
+    Scheduler = "Scheduler"
     Imported = "Imported"
     Matched = "Matched"

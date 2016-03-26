@@ -1,34 +1,33 @@
-import codecs
+import csv
 import inspect
 import json
+import os
+import sys
 from collections import namedtuple
 from datetime import datetime
-import configargparse
-import os
-import csv
-import sys
 
-import jsontableschema
+import configargparse
 from jsontableschema.exceptions import InvalidSchemaError, InvalidCastError, ConversionError
 from jsontableschema.model import SchemaModel
 
 from pynYNAB.Client import clientfromargs
-from pynYNAB.budget import Payee, Transaction
 from pynYNAB.config import get_logger, test_common_args
+from pynYNAB.db.budget import Payee, Transaction
 
-scriptsdir=os.path.dirname(os.path.abspath(__file__))
-schemas_dir = os.path.join(scriptsdir,'csv_schemas')
+scriptsdir = os.path.dirname(os.path.abspath(__file__))
+schemas_dir = os.path.join(scriptsdir, 'csv_schemas')
+
 
 def csvimport_main():
     print('pynYNAB CSV import')
     """Manually import a CSV into a nYNAB budget"""
     parser = configargparse.getArgumentParser('pynYNAB')
-    parser.description=inspect.getdoc(csvimport_main)
+    parser.description = inspect.getdoc(csvimport_main)
     parser.add_argument('csvfile', metavar='CSVpath', type=str,
                         help='The CSV file to import')
     parser.add_argument('schema', metavar='schemaName', type=str,
                         help='The CSV schema to use (see csv_schemas directory)')
-    parser.add_argument('accountname', metavar='AccountName', type=str,nargs='?',
+    parser.add_argument('accountname', metavar='AccountName', type=str, nargs='?',
                         help='The nYNAB account name  to use')
     parser.add_argument('-import-duplicates', action='store_true',
                         help='Forces the import even if a duplicate (same date, account, amount, memo, payee) is found')
@@ -43,10 +42,10 @@ def csvimport_main():
     do_csvimport(args)
 
 
-def do_csvimport(args,client=None):
+def do_csvimport(args, client=None):
     if client is None:
         client = clientfromargs(args)
-    logger=get_logger(args)
+    logger = get_logger(args)
 
     logger.debug('selected schema %s' % (args.schema,))
     if os.path.exists(args.schema):
@@ -58,7 +57,7 @@ def do_csvimport(args,client=None):
             exit(-1)
     try:
         schema = SchemaModel(schemafile, case_insensitive_headers=True)
-        with open(schemafile,'r') as sf:
+        with open(schemafile, 'r') as sf:
             schemacontent = json.load(sf)
             try:
                 nheaders = schemacontent['nheaders']
@@ -78,8 +77,8 @@ def do_csvimport(args,client=None):
     mastercategories_perid = {m.id: m for m in client.budget.be_master_categories}
     subcategories = {}
     for s in client.budget.be_subcategories:
-        m=mastercategories_perid[s.entities_master_category_id]
-        subcategories[m.name+':'+s.name]=s
+        m = mastercategories_perid[s.entities_master_category_id]
+        subcategories[m.name + ':' + s.name] = s
 
     def getaccount(accountname):
         try:
@@ -95,7 +94,7 @@ def do_csvimport(args,client=None):
             return payees[payeename]
         except KeyError:
             logger.debug('Couldn''t find this payee: %s' % payeename)
-            payee=Payee(name=payeename)
+            payee = Payee(name=payeename)
             client.budget.be_payees.append(payee)
             return payee
 
@@ -110,10 +109,8 @@ def do_csvimport(args,client=None):
     if 'account' not in schema.headers:
         entities_account_id = getaccount(args.accountname).id
 
-    if 'inflow' in schema.headers and 'outflow' in schema.headers:
-        def amountfun(result): return result.inflow - result.outflow
-    elif 'amount' in schema.headers:
-        def amountfun(result): return result.amount
+    if ('inflow' in schema.headers and 'outflow' in schema.headers) or 'amount' in schema.headers:
+        pass
     else:
         logger.error('This schema doesn''t provide an amount column or (inflow,outflow) columns')
         exit(-1)
@@ -121,16 +118,18 @@ def do_csvimport(args,client=None):
     csvrow = namedtuple('CSVrow', field_names=schema.headers)
     transactions = []
 
-    imported_date=datetime.now().date()
+    imported_date = datetime.now().date()
 
-    get_logger(args).debug('OK starting the import from %s '%os.path.abspath(args.csvfile))
+    transactions_dedup = map(Transaction.dedupinfo, client.budget.be_transactions)
+
+    get_logger(args).debug('OK starting the import from %s ' % os.path.abspath(args.csvfile))
     with open(args.csvfile, 'r') as inputfile:
         for i in range(nheaders):
             inputfile.readline()
         for row in csv.reader(inputfile):
             if sys.version[0] == '2':
                 row = [cell.decode('utf-8') for cell in row]
-            #row=[cell.strip() for cell in row]
+            # row=[cell.strip() for cell in row]
             get_logger(args).debug('read line %s' % row)
             try:
                 result = csvrow(*list(schema.convert_row(*row, fail_fast=True)))
@@ -148,22 +147,21 @@ def do_csvimport(args,client=None):
                 get_logger(args).error('Couldn''t find this account: %s' % args.accountname)
                 exit(-1)
 
-            if result.category and 'category' in schema.headers:
+            if 'category' in schema.headers and result.category:
                 entities_subcategory_id = getsubcategory(result.category).id
             else:
                 entities_subcategory_id = None
             if 'payee' in schema.headers:
-                imported_payee=result.payee
+                imported_payee = result.payee
             else:
-                imported_payee=''
+                imported_payee = ''
             entities_payee_id = getpayee(imported_payee).id
             if 'memo' in schema.headers:
-                memo=result.memo
+                memo = result.memo
             else:
-                memo=''
+                memo = ''
 
-
-            transaction=Transaction(
+            transaction = Transaction(
                 entities_account_id=entities_account_id,
                 amount=amount,
                 date=result.date,
@@ -174,15 +172,15 @@ def do_csvimport(args,client=None):
                 memo=memo,
                 source="Imported"
             )
-            if args.import_duplicates or (not client.budget.be_transactions.containsduplicate(transaction)):
-                get_logger(args).debug('Appending transaction %s '%transaction.getdict())
+
+            if args.import_duplicates or (not Transaction.dedupinfo(transaction) in transactions_dedup):
+                get_logger(args).debug('Appending transaction %s ' % transaction.getdict())
                 transactions.append(transaction)
             else:
-                get_logger(args).debug('Duplicate transaction found %s '%transaction.getdict())
-
-
+                get_logger(args).debug('Duplicate transaction found %s ' % transaction.getdict())
 
     client.add_transactions(transactions)
+
 
 if __name__ == "__main__":
     csvimport_main()

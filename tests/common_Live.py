@@ -4,15 +4,15 @@ import unittest
 from datetime import datetime
 
 from pynYNAB import KeyGenerator
-from pynYNAB.Entity import AccountTypes
-from pynYNAB.budget import Account, Payee
+from pynYNAB.schema.enums import AccountTypes
+from pynYNAB.db.budget import Account, Payee
 from pynYNAB.Client import clientfromargs
-from pynYNAB.budget import Transaction
+from pynYNAB.db.budget import Transaction
 
 
-class commonLive(unittest.TestCase):
+class CommonLive(unittest.TestCase):
     def __init__(self, *args, **kwargs):
-        super(commonLive, self).__init__(*args, **kwargs)
+        super(CommonLive, self).__init__(*args, **kwargs)
         self.account = None
         self.budget = None
         self.transaction = None

@@ -1,11 +1,11 @@
 from functools import wraps
 
-from pynYNAB.db.budget import Payee, Transaction
-from pynYNAB.db.catalog import BudgetVersion
 from pynYNAB.config import get_logger
 from pynYNAB.connection import NYnabConnectionError, nYnabConnection
+from pynYNAB.db.budget import Payee, Transaction, Budget
+from pynYNAB.db.catalog import BudgetVersion, Catalog
+from pynYNAB.db.db import session_scope
 from pynYNAB.utils import chunk
-from pynYNAB.db.roots import Budget, Catalog
 
 
 def clientfromargs(args, reset=False):
@@ -35,9 +35,15 @@ class nYnabClient(object):
         self.budget_name = budget_name
         self.connection = nynabconnection
         self.budget_name = budget_name
-        self.catalog = Catalog()
-        self.budget = Budget()
-        self.budget_version = BudgetVersion()
+        with session_scope() as session:
+            self.catalog = Catalog()
+            self.budget = Budget()
+            self.budget_version = BudgetVersion()
+
+            session.add(self.catalog)
+            session.add(self.budget)
+            session.add(self.budget_version)
+            session.commit()
         self.sync()
 
     def getinitialdata(self):
@@ -52,17 +58,18 @@ class nYnabClient(object):
 
     def sync(self):
         # ending-starting represents the number of modifications that have been done to the data ?
-        self.catalog.sync(self.connection, 'syncCatalogData')
+        self.catalog.sync(self.connection)
         if self.budget.budget_version_id is None:
             for catalogbudget in self.catalog.ce_budgets:
                 if catalogbudget.budget_name == self.budget_name:
                     for budget_version in self.catalog.ce_budget_versions:
                         if budget_version.budget_id == catalogbudget.id:
                             self.budget.budget_version_id = budget_version.id
+                            break
         if self.budget.budget_version_id is None and self.budget_name is not None:
             raise BudgetNotFound()
         else:
-            self.budget.sync(self.connection, 'syncBudgetData')
+            self.budget.sync(self.connection)
 
     def operation(fn):
         @wraps(fn)
@@ -106,7 +113,7 @@ class nYnabClient(object):
 
     @operation
     def delete_account(self, account):
-        self.budget.be_accounts.delete(account)
+        self.budget.be_accounts.remove(account)
 
     @operation
     def add_transaction(self, transaction):
@@ -123,22 +130,21 @@ class nYnabClient(object):
 
     @operation
     def delete_transaction(self, transaction):
-        self.budget.be_transactions.delete(transaction)
+        self.budget.be_transactions.remove(transaction)
 
-    def select_account_ui(self,create=False):
-        accounts=list(self.budget.be_accounts)
+    def select_account_ui(self, create=False):
+        accounts = list(self.budget.be_accounts)
 
-        iaccount=0
+        iaccount = 0
         if create:
             print('#0 ###CREATE')
-            iaccount=1
+            iaccount = 1
 
-        for  account in accounts:
+        for account in accounts:
             print('#%d %s' % (iaccount, account.account_name))
             iaccount += 1
         if create:
-            accounts=[None]+accounts
-
+            accounts = [None] + accounts
 
         while True:
             accountnumber = input('Which account? ')
@@ -155,8 +161,7 @@ class nYnabClient(object):
     def delete_budget(self, budget_name):
         for budget in self.catalog.ce_budgets:
             if budget.budget_name == budget_name:
-                budget.is_tombstone = True
-                self.catalog.ce_budgets.modify(budget)
+                self.catalog.ce_budgets.remove(budget)
 
     def select_budget(self, budget_name):
         self.catalog.sync(self.connection, 'syncCatalogData')

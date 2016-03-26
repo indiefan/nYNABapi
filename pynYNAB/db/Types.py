@@ -1,64 +1,45 @@
-import uuid
+from datetime import datetime
 
-from sqlalchemy import TypeDecorator, types
-from sqlalchemy.dialects.mysql import CHAR
-from sqlalchemy.dialects.postgresql import UUID
-
-from pynYNAB.schema.enums import AccountTypes
+from sqlalchemy.sql.sqltypes import String, Boolean, Integer
 
 
-class GUID(TypeDecorator):
-    """Platform-independent GUID type.
+class Converter(object):
+    @classmethod
+    def amount_in(cls, value):
+        return int(1000 * value)
 
-    Uses Postgresql's UUID type, otherwise uses
-    CHAR(32), storing as stringified hex values.
+    @classmethod
+    def amount_out(cls, value):
+        return float(value / 1000)
 
-    """
-    impl = CHAR
+    @classmethod
+    def jsondata_in(cls, value):
+        return int(1000 * value)
 
-    def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
-            return dialect.type_descriptor(UUID())
-        else:
-            return dialect.type_descriptor(CHAR(32))
+    @classmethod
+    def jsondata_out(cls, value):
+        return float(value / 10000)
 
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return value
-        elif dialect.name == 'postgresql':
-            return str(value)
-        else:
-            if not isinstance(value, uuid.UUID):
-                return "%.32x" % uuid.UUID(value).int
-            else:
-                # hexstring
-                return "%.32x" % value.int
+    @classmethod
+    def date_in(cls, value):
+        return value.strftime('%Y-%m-%d')
 
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return value
-        else:
-            return uuid.UUID(value)
+    @classmethod
+    def date_out(cls, value):
+        return datetime.strptime(value, '%Y-%m-%d').date()
 
-class Amount(TypeDecorator):
-    """Amount in nYNAB"""
 
-    impl = types.Integer
+class Amount(Integer):
+    pass
 
-    def process_bind_param(self, value, dialect):
-        return int(1000*value)
 
-    def process_result_value(self, value, dialect):
-        return float(value/1000)
+class Dates(String):
+    pass
 
-import json
-class Dates(TypeDecorator):
-    """Amount in nYNAB"""
 
-    impl = types.String
+class IgnorableString(String):
+    pass
 
-    def process_bind_param(self, value, dialect):
-        return json.dumps(value)
 
-    def process_result_value(self, value, dialect):
-        return json.loads(value)
+class IgnorableBoolean(Boolean):
+    pass

@@ -9,13 +9,13 @@ import errno
 import sys
 
 from pynYNAB.Entity import ComplexEncoder
-from pynYNAB.budget import Transaction
+from pynYNAB.db.budget import Transaction
 from pynYNAB.scripts.csvimport import do_csvimport
-from common_Live import commonLive
+from common_Live import CommonLive
 import json
 
 
-class TestCsv(commonLive):
+class TestCsv(CommonLive):
     def getTr(self, date, payee, amount, memo, account):
         imported_date = datetime.now().date()
         return Transaction(
@@ -31,7 +31,7 @@ class TestCsv(commonLive):
         )
 
     def setUp(self):
-        super(TestCsv,self).setUp()
+        super(TestCsv, self).setUp()
         parser = configargparse.getArgumentParser('pynYNAB')
         self.args = parser.parse_known_args()[0]
         self.args.schema = 'example'
@@ -47,7 +47,7 @@ class TestCsv(commonLive):
                 raise
         self.reload()
 
-    def writecsv(self,content,encoding='utf-8'):
+    def writecsv(self, content, encoding='utf-8'):
         with io.open(self.args.csvfile, mode='w', encoding=encoding) as f:
             if sys.version[0] == '2':
                 f.writelines(unicode(content))
@@ -60,16 +60,18 @@ class TestCsv(commonLive):
 """
         self.writecsv(content)
 
-        accountCredit=self.util_get_empty_account_by_name_if_doesnt_exist('Credit')
-        transaction=self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants', accountCredit)
+        accountCredit = self.util_get_empty_account_by_name_if_doesnt_exist('Credit')
+        transaction = self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants',
+                                 accountCredit)
 
         for i in range(2):
             do_csvimport(self.args)
             self.reload()
-            identical=[tr2 for tr2 in self.client.budget.be_transactions if transaction.hash() == tr2.hash()]
-            print('Transactions with same hash: %s'%len(identical))
-            self.assertEqual(len(identical), 1)
 
+            identical = [tr2 for tr2 in self.client.budget.be_transactions if
+                         Transaction.dedupinfo(transaction) == Transaction.dedupinfo(tr2)]
+            print('Transactions with same hash: %s' % len(identical))
+            self.assertEqual(len(identical), 1)
 
     def test_duplicateForced(self):
         content = """Date,Payee,Amount,Memo,Account
@@ -78,16 +80,18 @@ class TestCsv(commonLive):
         self.writecsv(content)
         accountCash = self.util_get_empty_account_by_name_if_doesnt_exist('Cash')
 
-        transaction=self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants', accountCash)
+        transaction = self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants',
+                                 accountCash)
 
-        args=self.args
-        args.import_duplicates=True
+        args = self.args
+        args.import_duplicates = True
 
         do_csvimport(args)
         self.reload()
         do_csvimport(args)
         self.reload()
-        identical = [tr2 for tr2 in self.client.budget.be_transactions if transaction.hash() == tr2.hash()]
+        identical = [tr2 for tr2 in self.client.budget.be_transactions if
+                     Transaction.dedupinfo(transaction) == Transaction.dedupinfo(tr2)]
         print('Transactions with same hash: %s' % len(identical))
         self.assertEqual(len(identical), 2)
 
@@ -104,7 +108,8 @@ class TestCsv(commonLive):
         accountSavings = self.util_get_empty_account_by_name_if_doesnt_exist('Savings')
 
         Transactions = [
-            self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants', accountCash),
+            self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants',
+                       accountCash),
             self.getTr(datetime(year=2016, month=2, day=2).date(), 'Thai Restaurant', -10, 'Food', accountChecking),
             self.getTr(datetime(year=2016, month=2, day=2).date(), 'Chinese Restaurant', -5, 'Food', accountCash),
             self.getTr(datetime(year=2016, month=2, day=3).date(), '', 10, 'Saving!', accountSavings),
@@ -117,25 +122,25 @@ class TestCsv(commonLive):
             print(json.dumps(
                 [tr2 for tr2 in self.client.budget.be_transactions if tr2.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertTrue(self.client.budget.be_transactions.containsduplicate(tr))
+            self.assertIn(Transaction.dedupinfo(tr), map(Transaction.dedupinfo, self.client.budget.be_transactions))
 
     def test_encoded(self):
-            content = u"""Date,Payee,Amount,Memo,Account
+        content = u"""Date,Payee,Amount,Memo,Account
         2016-02-01,Grand Café,-3,Coffee,Cash
                 """
-            self.writecsv(content,encoding='utf-8')
-            accountCash = self.util_get_empty_account_by_name_if_doesnt_exist('Cash')
+        self.writecsv(content, encoding='utf-8')
+        accountCash = self.util_get_empty_account_by_name_if_doesnt_exist('Cash')
 
-            Transactions = [
-                self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Buying pants',
-                           accountCash),
-            ]
+        Transactions = [
+            self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Buying pants',
+                       accountCash),
+        ]
 
-            do_csvimport(self.args)
-            self.reload()
-            for tr in Transactions:
-                print(json.dumps(tr, cls=ComplexEncoder))
-                print(json.dumps(
-                    [tr2 for tr2 in self.client.budget.be_transactions if tr2.amount == tr.amount],
-                    cls=ComplexEncoder))
-                self.assertTrue(self.client.budget.be_transactions.containsduplicate(tr))
+        do_csvimport(self.args)
+        self.reload()
+        for tr in Transactions:
+            print(json.dumps(tr, cls=ComplexEncoder))
+            print(json.dumps(
+                [tr2 for tr2 in self.client.budget.be_transactions if tr2.amount == tr.amount],
+                cls=ComplexEncoder))
+            self.assertIn(Transaction.dedupinfo(tr), list(map(Transaction.dedupinfo,self.client.budget.be_transactions)))

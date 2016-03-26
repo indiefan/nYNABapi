@@ -3,24 +3,23 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 from pynYNAB import KeyGenerator
-from pynYNAB.Entity import AccountTypes
-from pynYNAB.budget import Transaction, Account, Subtransaction
+from pynYNAB.schema.enums import AccountTypes
+from pynYNAB.db.budget import Transaction, Account, Subtransaction
 
-from common_Live import commonLive
+from common_Live import CommonLive
 
 
-class liveTests(commonLive):
+class LiveTests(CommonLive):
     def test_add_delete_budget(self):
-        budget_name=KeyGenerator.generateuuid()
+        budget_name = KeyGenerator.generateuuid()
         self.client.create_budget(budget_name)
         self.reload()
-        matches=[b for b in self.client.catalog.ce_budgets if b.budget_name==budget_name]
+        matches = [b for b in self.client.catalog.ce_budgets if b.budget_name == budget_name]
         self.assertTrue(len(matches) == 1)
         self.client.delete_budget(budget_name)
         self.reload()
-        matches=[b for b in self.client.catalog.ce_budgets if b.budget_name==budget_name]
+        matches = [b for b in self.client.catalog.ce_budgets if b.budget_name == budget_name]
         self.assertTrue(len(matches) == 0)
-        self.reload()
 
     def needs_account(fn):
         @wraps(fn)
@@ -31,6 +30,7 @@ class liveTests(commonLive):
                 return
             self.util_add_account()
             raise ValueError('No available account !')
+
         return wrapped
 
     def needs_transaction(fn):
@@ -47,7 +47,7 @@ class liveTests(commonLive):
         return wrapped
 
     def test_add_delete_account(self):
-        account_type=AccountTypes.Checking
+        account_type = AccountTypes.Checking
         account_name = KeyGenerator.generateuuid()
         budget = self.client.budget
 
@@ -75,9 +75,7 @@ class liveTests(commonLive):
 
         self.reload()
 
-        result = self.client.budget.be_transactions.get(account.id)
-
-        self.assertTrue(result is None)
+        self.assertNotIn(account, self.client.budget.be_transactions)
 
     @needs_account
     def test_add_deletetransaction(self):
@@ -85,7 +83,7 @@ class liveTests(commonLive):
         transaction = Transaction(
             amount=1,
             cleared='Uncleared',
-            date=datetime.now(),
+            date=datetime.now().date(),
             entities_account_id=self.account.id,
         )
         self.client.add_transaction(transaction)
@@ -127,7 +125,7 @@ class liveTests(commonLive):
 
         self.reload()
         for transaction in transactions:
-            self.assertIn(transaction, self.client.budget.be_transactions)
+            self.assertIn(Transaction.dedupinfo(transaction), map(Transaction.dedupinfo,self.client.budget.be_transactions))
 
         for transaction in transactions:
             self.client.delete_transaction(transaction)
@@ -136,7 +134,6 @@ class liveTests(commonLive):
         for transaction in transactions:
             resulttransaction = self.client.budget.be_transactions.get(transaction.id)
             self.assertTrue(resulttransaction is None)
-
 
     @needs_account
     def test_add_splittransactions(self):
@@ -174,7 +171,7 @@ class liveTests(commonLive):
         subcat1, subcat2 = tuple(random.sample(list(self.client.budget.be_subcategories), 2))
         subcatsplit_id = next(subcategory.id for subcategory in self.client.budget.be_subcategories if
                               subcategory.internal_name == 'Category/__Split__')
-        self.transaction.entities_subcategory_id = subcatsplit_id
+
 
         sub1 = Subtransaction(
             amount=self.transaction.amount - 5000,
@@ -189,7 +186,8 @@ class liveTests(commonLive):
 
         self.client.budget.be_subtransactions.append(sub1)
         self.client.budget.be_subtransactions.append(sub2)
-        self.client.budget.be_transactions.modify(self.transaction)
+
+        self.transaction.entities_subcategory_id = subcatsplit_id
 
         self.client.sync()
 

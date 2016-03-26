@@ -1,54 +1,130 @@
-from sqlalchemy import Column
-from sqlalchemy.orm import relationship, backref
-from sqlalchemy.types import Date,Boolean,String,Enum,Integer
-from sqlalchemy.schema import ForeignKey
+import random
 
+from sqlalchemy import Column as OriginalColumn
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import relationship
+from sqlalchemy.schema import ForeignKey
+from sqlalchemy.types import Date, Boolean, String, Enum, Integer
+
+from pynYNAB.Entity import on_budget_dict
 from pynYNAB.db import Base
-from pynYNAB.db.Entity import Entity
-from pynYNAB.db.Types import Amount, Dates, GUID
+from pynYNAB.db.Entity import Entity, Column, EntityBase
+from pynYNAB.db.Types import Amount, IgnorableString, IgnorableBoolean
+from pynYNAB.db.Types import Dates
+from pynYNAB.roots import Root, ListOfEntities
 from pynYNAB.schema.enums import AccountTypes, Sources
 
 
-class Transaction(Entity,Base):
-    accepted = Column(Boolean())
-    # amount = Column(Amount())
-    cash_amount = Column(Amount())
+class Budget(Root, Base):
+    OPNAME = 'syncBudgetData'
+
+    def __init__(self):
+        super(Budget, self).__init__()
+        self.budget_version_id = None
+
+    be_transactions = ListOfEntities("Transaction")
+    be_master_categories = ListOfEntities('MasterCategory')
+    be_settings = ListOfEntities('Setting')
+    be_monthly_budget_calculations = ListOfEntities('MonthlyBudgetCalculation')
+    be_account_mappings = ListOfEntities('AccountMapping')
+    be_subtransactions = ListOfEntities('Subtransaction')
+    be_scheduled_subtransactions = ListOfEntities('ScheduledSubtransaction')
+    be_monthly_budgets = ListOfEntities('MonthlyBudget')
+    be_subcategories = ListOfEntities('Subcategory')
+    be_payee_locations = ListOfEntities('PayeeLocation')
+    be_account_calculations = ListOfEntities('AccountCalculation')
+    be_monthly_account_calculations = ListOfEntities('MonthlyAccountCalculation')
+    be_monthly_subcategory_budget_calculations = ListOfEntities('MonthlySubcategoryBudgetCalculation')
+    be_scheduled_transactions = ListOfEntities('ScheduledTransaction')
+    be_payees = ListOfEntities('Payee')
+    be_monthly_subcategory_budgets = ListOfEntities('MonthlySubcategoryBudget')
+    be_payee_rename_conditions = ListOfEntities('PayeeRenameCondition')
+    be_accounts = ListOfEntities('Account')
+    last_month = Column(Date())
+    first_month = Column(Date())
+
+    def get_request_data(self):
+        k, request_data = super(Budget, self).get_request_data()
+        request_data['budget_version_id'] = self.budget_version_id
+        request_data['calculated_entities_included'] = False
+        return k, request_data
+
+    def get_changed_entities(self):
+        changed_entities = super(Budget, self).get_changed_entities()
+        if 'be_transactions' in changed_entities:
+            changed_entities['be_transaction_groups'] = []
+            for tr in changed_entities.pop('be_transactions'):
+                subtransactions = []
+                if 'be_subtransactions' in changed_entities:
+                    for subtr in [subtransaction for subtransaction in changed_entities.get('be_subtransactions') if
+                                  subtransaction.entities_transaction_id == tr.id]:
+                        changed_entities['be_subtransactions'].remove(subtr)
+                        subtransactions.append(subtr)
+                changed_entities['be_transaction_groups'].append(TransactionGroup(
+                    id=tr.id,
+                    be_transaction=tr,
+                    be_subtransactions=subtransactions
+                ))
+        if changed_entities.get('be_subtransactions') is not None:
+            del changed_entities['be_subtransactions']
+        return changed_entities
+
+
+class BudgetEntity(Entity):
+    @declared_attr
+    def budget_id(self):
+        return OriginalColumn(String(36), ForeignKey('budget.id'))
+
+    @declared_attr
+    def budget(self):
+        return relationship("Budget")
+
+
+class Transaction(BudgetEntity, Base):
+    accepted = Column(Boolean(), default=True, nullable=False)
+    amount = Column(Amount(), default=0)
+    cash_amount = Column(Amount(), default=0)
     check_number = Column(String())
-    cleared = Column(String(),default='Uncleared')
-    # credit_amount = Column(Amount(),default=0)
+    cleared = Column(String(), default='Uncleared')
+    credit_amount = Column(Amount(), default=0)
     date = Column(Date())
     date_entered_from_schedule = Column(Date())
-    entities_account_id = Column(GUID(),ForeignKey('Account'))
-    entities_payee_id = Column(String(36),ForeignKey('Payee'))
-    entities_scheduled_transaction_id = Column(String(36),ForeignKey('ScheduledTransaction'))
-    entities_subcategory_id = Column(String(36),ForeignKey('Subcategory'))
+    entities_account_id = Column(String(36), ForeignKey('account.id'))
+    entities_payee_id = Column(String(36), ForeignKey('payee.id'))
+    entities_scheduled_transaction_id = Column(String(36), ForeignKey('scheduledtransaction.id'))
+    entities_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
     flag = Column(String())
     imported_date = Column(Date())
     imported_payee = Column(String())
-    matched_transaction_id = Column(String(36),ForeignKey('Transaction'))
+    matched_transaction_id = Column(String(36), ForeignKey('transaction.id'))
     memo = Column(String())
-    # source = Column(Enum(Sources))
-    # transfer_account_id = Column(GUID(),ForeignKey('Account'))
-    # transfer_subtransaction_id = Column(GUID(),ForeignKey('Subtransaction'))
-    # transfer_transaction_id = Column(GUID(),ForeignKey('Transaction'))
+    source = Column(Enum(*Sources.__members__.keys(), name='Sources'))
+    transfer_account_id = Column(String(36), ForeignKey('account.id'))
+    transfer_subtransaction_id = Column(String(36), ForeignKey('subtransaction.id'))
+    transfer_transaction_id = Column(String(36), ForeignKey('transaction.id'))
     ynab_id = Column(String())
 
+    @classmethod
+    def dedupinfo(cls, row):
+        return row.amount, row.date, row.entities_account_id, row.entities_payee_id
 
-class MasterCategory(Entity,Base):
-    deletable = Column(Boolean(),default=True)
+
+class MasterCategory(BudgetEntity, Base):
+    deletable = Column(Boolean(), default=True)
     internal_name = Column(String())
-    is_hidden = Column(Boolean(),default=False)
+    is_hidden = Column(Boolean(), default=False)
     name = Column(String())
     note = Column(String())
     sortable_index = Column(Integer())
 
 
-class Setting(Entity,Base):
+class Setting(BudgetEntity, Base):
     setting_name = Column(String())
     setting_value = Column(String())
 
 
-class MonthlyBudgetCalculation(Entity,Base):
+class MonthlyBudgetCalculation(BudgetEntity, Base):
     additional_to_be_budgeted = Column(Amount())
     age_of_money = Column(String())
     available_to_budget = Column(String())
@@ -71,9 +147,9 @@ class MonthlyBudgetCalculation(Entity,Base):
     uncategorized_credit_outflows = Column(Amount())
 
 
-class AccountMapping(Entity,Base):
+class AccountMapping(BudgetEntity, Base):
     date_sequence = Column(Date())
-    entities_account_id = Column(String())
+    entities_account_id = Column(String(36), ForeignKey('account.id'))
     hash = Column(String())
     fid = Column(String())
     salt = Column(String())
@@ -83,42 +159,42 @@ class AccountMapping(Entity,Base):
     skip_import = Column(String())
 
 
-class Subtransaction(Entity,Base):
+class Subtransaction(BudgetEntity, Base):
     amount = Column(Amount())
     cash_amount = Column(Amount())
     check_number = Column(String())
     credit_amount = Column(Amount())
-    entities_payee_id = Column(String())
-    entities_subcategory_id = Column(String())
-    entities_transaction_id = Column(String())
+    entities_payee_id = Column(String(36), ForeignKey('payee.id'))
+    entities_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
+    entities_transaction_id = Column(String(36), ForeignKey('transaction.id'))
     memo = Column(String())
     sortable_index = Column(Integer())
-    transfer_account_id = Column(String())
-    transfer_transaction_id = Column(String())
+    transfer_account_id = Column(String(36), ForeignKey('account.id'))
+    transfer_transaction_id = Column(String(36), ForeignKey('transaction.id'))
 
 
-class ScheduledSubtransaction(Entity,Base):
+class ScheduledSubtransaction(BudgetEntity, Base):
     amount = Column(Amount())
-    entities_payee_id = Column(String())
-    entities_scheduled_transaction_id = Column(String())
-    entities_subcategory_id = Column(String())
+    entities_payee_id = Column(String(36), ForeignKey('payee.id'))
+    entities_scheduled_transaction_id = Column(String(36), ForeignKey('scheduledtransaction.id'))
+    entities_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
     memo = Column(String())
     sortable_index = Column(Integer())
-    transfer_account_id = Column(String())
+    transfer_account_id = Column(String(36), ForeignKey('account.id'))
 
 
-class MonthlyBudget(Entity,Base):
+class MonthlyBudget(BudgetEntity, Base):
     month = Column(String())
     note = Column(String())
 
 
-class Subcategory(Entity,Base):
-    entities_account_id = Column(String())
-    entities_master_category_id = Column(String())
+class Subcategory(BudgetEntity, Base):
+    entities_account_id = Column(String(36), ForeignKey('account.id'))
+    entities_master_category_id = Column(String(36), ForeignKey('mastercategory.id'))
     goal_creation_month = Column(String())
     goal_type = Column(String())
     internal_name = Column(String())
-    is_hidden = Column(Boolean(),default=False)
+    is_hidden = Column(Boolean(), default=False)
     monthly_funding = Column(String())
     name = Column(String())
     note = Column(String())
@@ -128,15 +204,15 @@ class Subcategory(Entity,Base):
     type = Column(String())
 
 
-class PayeeLocation(Entity,Base):
-    entities_payee_id = Column(String())
+class PayeeLocation(BudgetEntity, Base):
+    entities_payee_id = Column(String(36), ForeignKey('payee.id'))
     latitude = Column(String())
     longitude = Column(String())
 
 
-class AccountCalculation(Entity,Base):
+class AccountCalculation(BudgetEntity, Base):
     cleared_balance = Column(Amount())
-    entities_account_id = Column(String())
+    entities_account_id = Column(String(36), ForeignKey('account.id'))
     error_count = Column(String())
     info_count = Column(String())
     transaction_count = Column(String())
@@ -144,7 +220,7 @@ class AccountCalculation(Entity,Base):
     warning_count = Column(String())
 
 
-class MonthlyAccountCalculation(Entity,Base):
+class MonthlyAccountCalculation(BudgetEntity, Base):
     cleared_balance = Column(Amount())
     entities_account_id = Column(String())
     error_count = Column(String())
@@ -155,7 +231,7 @@ class MonthlyAccountCalculation(Entity,Base):
     warning_count = Column(String())
 
 
-class MonthlySubcategoryBudgetCalculation(Entity,Base):
+class MonthlySubcategoryBudgetCalculation(BudgetEntity, Base):
     all_spending = Column(Amount())
     all_spending_since_last_payment = Column(Amount())
     balance = Column(Amount())
@@ -184,34 +260,34 @@ class MonthlySubcategoryBudgetCalculation(Entity,Base):
     positive_cash_outflows = Column(Amount())
 
 
-class ScheduledTransaction(Entity,Base):
+class ScheduledTransaction(BudgetEntity, Base):
     amount = Column(Amount())
     date = Column(Date())
-    entities_account_id = Column(String(36),ForeignKey('Account'))
-    entities_payee_id = Column(String(36),ForeignKey('Payee'))
-    entities_subcategory_id = Column(String(36),ForeignKey('Subcategory'))
-    flag = Column(String(),default='')
+    entities_account_id = Column(String(36), ForeignKey('account.id'))
+    entities_payee_id = Column(String(36), ForeignKey('payee.id'))
+    entities_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
+    flag = Column(String(), default='')
     frequency = Column(String())
     memo = Column(String())
     transfer_account_id = Column(String())
     upcoming_instances = Column(Dates())
 
 
-class Payee(Entity,Base):
+class Payee(BudgetEntity, Base):
     auto_fill_amount = Column(Amount())
     auto_fill_amount_enabled = Column(String())
     auto_fill_memo = Column(String())
     auto_fill_memo_enabled = Column(String())
     auto_fill_subcategory_enabled = Column(String())
-    auto_fill_subcategory_id = Column(String())
-    enabled = Column(Boolean(),default=True)
+    auto_fill_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
+    enabled = Column(Boolean(), default=True)
     entities_account_id = Column(String())
     internal_name = Column(String())
     name = Column(String())
     rename_on_import_enabled = Column(String())
 
 
-class MonthlySubcategoryBudget(Entity,Base):
+class MonthlySubcategoryBudget(BudgetEntity, Base):
     budgeted = Column(Amount())
     entities_monthly_budget_id = Column(String())
     entities_subcategory_id = Column(String())
@@ -219,30 +295,33 @@ class MonthlySubcategoryBudget(Entity,Base):
     overspending_handling = Column(String())
 
 
-class TransactionGroup(Entity,Base):
+class TransactionGroup(EntityBase, Base):
     be_transaction = Column(String())
     be_subtransactions = Column(String())
     be_matched_transaction = Column(String())
 
 
-class PayeeRenameCondition(Entity,Base):
-    entities_payee_id = Column(String(36),ForeignKey('Payee'))
+class PayeeRenameCondition(BudgetEntity, Base):
+    entities_payee_id = Column(String(36), ForeignKey('payee.id'))
     operand = Column(String())
     operator = Column(String())
 
 
-class Account(Entity,Base):
+class Account(BudgetEntity, Base):
     account_name = Column(String())
-    account_type = Column(Enum(AccountTypes))
-    direct_connect_account_id = Column(String())
-    direct_connect_enabled = Column(Boolean(),default=False)
-    direct_connect_institution_id = Column(String())
-    hidden = Column(Boolean(),default=False)
+    account_type = Column(Enum(*AccountTypes.__members__.keys(), name='AccountTypes'))
+    direct_connect_account_id = Column(IgnorableString())
+    direct_connect_enabled = Column(IgnorableBoolean(), default=False)
+    direct_connect_institution_id = Column(IgnorableString())
+    hidden = Column(Boolean(), default=False)
     last_entered_check_number = Column(String())
-    last_imported_at = Column(String())
-    last_imported_error_code = Column(String())
+    last_imported_at = Column(IgnorableString())
+    last_imported_error_code = Column(IgnorableString())
     last_reconciled_balance = Column(String())
     last_reconciled_date = Column(Date())
     note = Column(String())
-    sortable_index = Column(Integer())
-    on_budget = Column(Boolean())
+    sortable_index = Column(Integer(), default=lambda: random.randint(1, 10000))
+
+    @hybrid_property
+    def on_budget(self):
+        return on_budget_dict[self.account_type.value] if self.account_type else None

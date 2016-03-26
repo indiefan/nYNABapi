@@ -1,26 +1,33 @@
 import json
 import unittest
 
-from pynYNAB.Entity import Entity, ComplexEncoder, ListofEntities, addprop
+from sqlalchemy import Column
+from sqlalchemy import Integer
+
+from pynYNAB.Entity import ComplexEncoder, obj_from_dict
+from pynYNAB.db import Base
+from pynYNAB.db.Entity import Entity
 from pynYNAB.db.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
     MonthlyAccountCalculation, MonthlyBudget, MonthlySubcategoryBudget, MonthlyBudgetCalculation, \
     MonthlySubcategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
-    ScheduledTransaction, Setting, Subtransaction, TransactionGroup
+    ScheduledTransaction, Setting, Subtransaction, TransactionGroup, Budget
 from pynYNAB.db.catalog import BudgetVersion, CatalogBudget, User, UserBudget, UserSetting
-from pynYNAB.roots import Budget, Catalog
-from pynYNAB.schema.Fields import EntityField, EntityListField, DateField, PropertyField
+from pynYNAB.db.db import session_scope
 
 
 class Test1(unittest.TestCase):
     maxDiff = None
 
     def testEntityjson(self):
-        class MyEntity(Entity):
-            Fields = {'greatfield': EntityField(2)}
+        class MyEntity(Entity, Base):
+            greatfield = Column(Integer(), default=2)
 
         obj = MyEntity()
         jsonroundtrip = json.loads(json.dumps(obj, cls=ComplexEncoder))
-        assert (jsonroundtrip == {'id': obj.id, 'greatfield': 2})
+        self.assertEqual(jsonroundtrip, obj.getdict())
+        obj2 = obj_from_dict(MyEntity, jsonroundtrip)
+
+        self.assertEqual(obj, obj2)
 
     def testequality(self):
         tr1 = Transaction()
@@ -31,84 +38,10 @@ class Test1(unittest.TestCase):
         tr2 = Transaction(entities_account_id=2)
         self.assertNotEqual(tr1, tr2)
 
-    def testentityIn(self):
-        tr1 = Transaction()
-        transactions = ListofEntities(Transaction)
-        transactions.append(tr1)
-        self.assertIn(tr1, transactions)
-
-    def testentityIn2(self):
-        tr1 = Transaction()
-        tr2 = Transaction()
-        transactions = ListofEntities(Transaction)
-        transactions.append(tr1)
-        self.assertNotIn(tr2, transactions)
-
     def test_hash(self):
         tr1 = Transaction()
-        result = tr1.hash()
-        self.assertIsInstance(result, int)
-
-
-    def testprop(self):
-
-        namefield='p'
-        default= lambda self:self.y
-        def pgetter(self):
-            if hasattr(self,'__prop_'+namefield):
-                print('special')
-                return getattr(self,'__prop_'+namefield)
-            else:
-                return default(self)
-
-        def psetter(self,value):
-            setattr(self,'__prop_'+namefield,value)
-
-        class myClass(object):
-            y = 1
-
-        obj1=myClass()
-        addprop(obj1,namefield,pgetter,psetter)
-
-        self.assertEqual(obj1.p,1)
-        obj1.y=3
-        self.assertEqual(obj1.p,3)
-        obj1.p=5
-        self.assertEqual(obj1.p,5)
-        obj1.y=7
-        self.assertNotEqual(obj1.p,7)
-
-    def test_lambdaprop(self):
-        class MockEntity(Entity):
-            Fields=dict(
-                input=EntityField(True),
-                override=PropertyField(lambda x: x.input)
-            )
-        # override behaves like a @property attribute:
-
-        entity1=MockEntity()
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=False
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=12
-        self.assertEqual(entity1.override,entity1.input)
-
-        # unless set directly:
-
-        entity1.override=42
-        self.assertEqual(entity1.override,42)
-        # then it behaves like a normal attribute:
-        entity1.input=False
-        self.assertEqual(entity1.override,42)
-
-        # we can clear and come back to @property behavior
-        entity1.clean_override()
-
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=False
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=12
-        self.assertEqual(entity1.override,entity1.input)
+        tr2 = Transaction()
+        self.assertEqual(Transaction.dedupinfo(tr1), Transaction.dedupinfo(tr2))
 
     def testimports(self):
         types = [
@@ -133,24 +66,15 @@ class Test1(unittest.TestCase):
             Transaction,
             TransactionGroup,
             BudgetVersion,
-            Catalog,
             CatalogBudget,
             User,
             UserBudget,
             UserSetting
         ]
 
-        def checkequal(l1, l2):
-            return len(l1) == len(l2) and sorted(l1) == sorted(l2)
-
-        for typ in types:
-            obj = typ()
-
-
     def testupdatechangedentities(self):
         obj = Budget()
-        assert (obj.be_accounts.__class__ == ListofEntities)
-        assert (obj.be_accounts.typeItems == Account)
+        assert (obj.be_accounts.track.otherclass == Account)
         assert (len(obj.be_accounts) == 0)
         account = Account()
         changed_entities = dict(
@@ -161,7 +85,6 @@ class Test1(unittest.TestCase):
         assert (next(obj.be_accounts.__iter__()) == account)
 
     def testappend(self):
-
         obj = Budget()
         account = Account()
         obj.be_accounts.append(account)
@@ -173,6 +96,40 @@ class Test1(unittest.TestCase):
         transaction = Transaction()
         self.assertRaises(ValueError, lambda: obj.be_accounts.append(transaction))
 
+    def test_update_add(self):
+        newobject = Account()
+        CE = {'be_accounts': [newobject]}
+
+        budget = Budget()
+        budget.update_from_changed_entities(CE)
+        self.assertIn(newobject, budget.be_accounts)
+
+    def test_update_delete(self):
+        with session_scope() as session:
+            obj = Account()
+            budget = Budget()
+            budget.be_accounts.append(obj)
+            session.add(budget)
+
+            obj2 = Account(**obj.getdict())
+            obj2.is_tombstone = True
+            CE = {'be_accounts': [obj2]}
+
+            budget.update_from_changed_entities(CE)
+            self.assertNotIn(obj, budget.be_accounts)
+
+    def test_update_modify(self):
+        obj = Account()
+        budget = Budget()
+        budget.be_accounts.append(obj)
+        budget.be_accounts.track.reset()
+        self.assertIn(obj, budget.be_accounts)
+
+        obj.account_name = 'BLA'
+        CE = {'be_accounts': [obj]}
+        budget.update_from_changed_entities(CE)
+        self.assertIn(obj, budget.be_accounts)
+
     def testCE_nochange(self):
         obj = Budget()
         self.assertEqual(obj.get_changed_entities(), {})
@@ -183,20 +140,33 @@ class Test1(unittest.TestCase):
         obj.be_accounts.append(account)
         self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account]})
 
+    def testCE_replace(self):
+        obj = Budget()
+        account = Account()
+        obj.be_accounts.append(account)
+        account2 = Account()
+        obj.be_accounts.track.reset()
+        obj.be_accounts = [account2]
+
+        changed = obj.get_changed_entities()
+        self.assertEqual(list(changed.keys()), ['be_accounts'])
+        self.assertEqual(set(changed['be_accounts']), {account, account2})
+
     def testCE_simpledelete(self):
         obj = Budget()
         account = Account()
-        obj.be_accounts.delete(account)
+        obj.be_accounts.append(account)
+        obj.be_accounts.track.reset()
+        obj.be_accounts.remove(account)
         self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account]})
 
     def testCE_simplechange(self):
         obj = Budget()
         account1 = Account()
         obj.be_accounts.append(account1)
-        account2 = Account(id=account1.id, account_name='BLA')
-        obj.be_accounts.changed = []
-        obj.be_accounts.modify(account2)
-        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account2]})
+        obj.be_accounts.track.reset()
+        account1.account_name = 'TEST'
+        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account1]})
 
     def test_str(self):
         # tests no exceptions when getting the string representation of some entities
@@ -205,11 +175,6 @@ class Test1(unittest.TestCase):
 
         obj2 = Budget()
         obj2.be_accounts.__str__()
-        obj2.be_accounts.__unicode__()
-
-    def testpropertyFields(self):
-        obj = Entity()
-        self.assertEqual(obj.Fields, {})
 
     def jsondefault(self):
         encoded = json.dumps('test', cls=ComplexEncoder)
