@@ -2,9 +2,9 @@ from functools import wraps
 
 from pynYNAB.config import get_logger
 from pynYNAB.connection import NYnabConnectionError, nYnabConnection
-from pynYNAB.db.budget import Payee, Transaction, Budget
-from pynYNAB.db.catalog import BudgetVersion, Catalog
 from pynYNAB.db.db import session_scope
+from pynYNAB.schema.budget import Payee, Transaction, Budget
+from pynYNAB.schema.catalog import BudgetVersion, Catalog
 from pynYNAB.utils import chunk
 
 

@@ -1,18 +1,17 @@
 # coding=utf-8
+import errno
 import io
+import json
 import os
+import sys
 from datetime import datetime
 
 import configargparse
-import errno
 
-import sys
-
-from pynYNAB.Entity import ComplexEncoder
-from pynYNAB.db.budget import Transaction
-from pynYNAB.scripts.csvimport import do_csvimport
 from common_Live import CommonLive
-import json
+from pynYNAB.Entity import ComplexEncoder
+from pynYNAB.schema.budget import Transaction
+from pynYNAB.scripts.csvimport import do_csvimport
 
 
 class TestCsv(CommonLive):

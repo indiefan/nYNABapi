@@ -12,7 +12,7 @@ from jsontableschema.model import SchemaModel
 
 from pynYNAB.Client import clientfromargs
 from pynYNAB.config import get_logger, test_common_args
-from pynYNAB.db.budget import Payee, Transaction
+from pynYNAB.schema.budget import Payee, Transaction
 
 scriptsdir = os.path.dirname(os.path.abspath(__file__))
 schemas_dir = os.path.join(scriptsdir, 'csv_schemas')

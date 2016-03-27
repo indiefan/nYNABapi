@@ -8,7 +8,7 @@ from ynab import YNAB
 
 from pynYNAB.Client import clientfromargs
 from pynYNAB.config import test_common_args
-from pynYNAB.db.budget import Payee, Subcategory, MasterCategory, Account
+from pynYNAB.schema.budget import Payee, Subcategory, MasterCategory, Account
 
 
 def migrate_main():

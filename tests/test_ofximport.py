@@ -1,14 +1,14 @@
+import json
 import os
 from datetime import datetime
 
 import configargparse
-import json
 
+from common_Live import CommonLive
 from pynYNAB.Client import clientfromargs
 from pynYNAB.Entity import ComplexEncoder
-from pynYNAB.db.budget import Transaction
+from pynYNAB.schema.budget import Transaction
 from pynYNAB.scripts.ofximport import do_ofximport
-from common_Live import CommonLive
 
 
 class TestOFX(CommonLive):

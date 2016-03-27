@@ -1,11 +1,12 @@
 import inspect
 from datetime import datetime
-from ofxtools import OFXTree
+
 import configargparse
+from ofxtools import OFXTree
 
 from pynYNAB.Client import clientfromargs
-from pynYNAB.db.budget import Transaction, Payee
 from pynYNAB.config import test_common_args
+from pynYNAB.schema.budget import Transaction, Payee
 
 
 def ofximport_main():

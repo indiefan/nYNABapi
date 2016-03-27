@@ -1,19 +1,19 @@
 import json
 import unittest
-
 from datetime import datetime
-from sqlalchemy import Integer,Date
+
+from sqlalchemy import Date
 
 from pynYNAB.Entity import ComplexEncoder, obj_from_dict
 from pynYNAB.db import Base
-from pynYNAB.db.Entity import Entity, Column
+from pynYNAB.db.Entity import Column
 from pynYNAB.db.Types import Amount
-from pynYNAB.db.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
+from pynYNAB.db.db import session_scope
+from pynYNAB.schema.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
     MonthlyAccountCalculation, MonthlyBudget, MonthlySubcategoryBudget, MonthlyBudgetCalculation, \
     MonthlySubcategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
-    ScheduledTransaction, Setting, Subtransaction, TransactionGroup, Budget, BudgetEntity
-from pynYNAB.db.catalog import BudgetVersion, CatalogBudget, User, UserBudget, UserSetting
-from pynYNAB.db.db import session_scope, Root
+    ScheduledTransaction, Setting, Subtransaction, Budget, BudgetEntity
+from pynYNAB.schema.catalog import BudgetVersion, User, UserBudget, UserSetting
 
 types = [
     Account,
