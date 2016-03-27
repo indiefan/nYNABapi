@@ -27,14 +27,14 @@ class Budget(Root, Base):
     be_subtransactions = ListOfEntities('Subtransaction')
     be_scheduled_subtransactions = ListOfEntities('ScheduledSubtransaction')
     be_monthly_budgets = ListOfEntities('MonthlyBudget')
-    be_subcategories = ListOfEntities('Subcategory')
+    be_subcategories = ListOfEntities('SubCategory')
     be_payee_locations = ListOfEntities('PayeeLocation')
     be_account_calculations = ListOfEntities('AccountCalculation')
     be_monthly_account_calculations = ListOfEntities('MonthlyAccountCalculation')
-    be_monthly_subcategory_budget_calculations = ListOfEntities('MonthlySubcategoryBudgetCalculation')
+    be_monthly_subcategory_budget_calculations = ListOfEntities('MonthlySubCategoryBudgetCalculation')
     be_scheduled_transactions = ListOfEntities('ScheduledTransaction')
     be_payees = ListOfEntities('Payee')
-    be_monthly_subcategory_budgets = ListOfEntities('MonthlySubcategoryBudget')
+    be_monthly_subcategory_budgets = ListOfEntities('MonthlySubCategoryBudget')
     be_payee_rename_conditions = ListOfEntities('PayeeRenameCondition')
     be_accounts = ListOfEntities('Account')
     last_month = Column(Date())
@@ -93,6 +93,7 @@ class Transaction(BudgetEntity, Base):
     entities_payee_id = Column(String(36), ForeignKey('payee.id'))
     entities_scheduled_transaction_id = Column(String(36), ForeignKey('scheduledtransaction.id'))
     entities_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
+    subcategory = relationship('SubCategory')
     flag = Column(String())
     imported_date = Column(Date())
     imported_payee = Column(String())
@@ -187,9 +188,10 @@ class MonthlyBudget(BudgetEntity, Base):
     note = Column(String())
 
 
-class Subcategory(BudgetEntity, Base):
+class SubCategory(BudgetEntity, Base):
     entities_account_id = Column(String(36), ForeignKey('account.id'))
     entities_master_category_id = Column(String(36), ForeignKey('mastercategory.id'))
+    master_category = relationship('MasterCategory')
     goal_creation_month = Column(String())
     goal_type = Column(String())
     internal_name = Column(String())
@@ -230,7 +232,7 @@ class MonthlyAccountCalculation(BudgetEntity, Base):
     warning_count = Column(String())
 
 
-class MonthlySubcategoryBudgetCalculation(BudgetEntity, Base):
+class MonthlySubCategoryBudgetCalculation(BudgetEntity, Base):
     all_spending = Column(Amount())
     all_spending_since_last_payment = Column(Amount())
     balance = Column(Amount())
@@ -286,7 +288,7 @@ class Payee(BudgetEntity, Base):
     rename_on_import_enabled = Column(String())
 
 
-class MonthlySubcategoryBudget(BudgetEntity, Base):
+class MonthlySubCategoryBudget(BudgetEntity, Base):
     budgeted = Column(Amount())
     entities_monthly_budget_id = Column(String())
     entities_subcategory_id = Column(String())

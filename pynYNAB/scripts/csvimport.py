@@ -12,7 +12,8 @@ from jsontableschema.model import SchemaModel
 
 from pynYNAB.Client import clientfromargs
 from pynYNAB.config import get_logger, test_common_args
-from pynYNAB.schema.budget import Payee, Transaction
+from pynYNAB.schema.budget import Transaction
+from pynYNAB.scripts.common import get_account, get_subcategory, get_payee
 
 scriptsdir = os.path.dirname(os.path.abspath(__file__))
 schemas_dir = os.path.join(scriptsdir, 'csv_schemas')
@@ -42,7 +43,7 @@ def csvimport_main():
     do_csvimport(args)
 
 
-def do_csvimport(args, client=None):
+def transaction_list(args, client=None):
     if client is None:
         client = clientfromargs(args)
     logger = get_logger(args)
@@ -72,42 +73,8 @@ def do_csvimport(args, client=None):
         logger.error('This schema does not have an account column and no account name was provided')
         exit(-1)
 
-    accounts = {x.account_name: x for x in client.budget.be_accounts}
-    payees = {p.name: p for p in client.budget.be_payees}
-    mastercategories_perid = {m.id: m for m in client.budget.be_master_categories}
-    subcategories = {}
-    for s in client.budget.be_subcategories:
-        m = mastercategories_perid[s.entities_master_category_id]
-        subcategories[m.name + ':' + s.name] = s
-
-    def getaccount(accountname):
-        try:
-            logger.debug('searching for account %s' % accountname)
-            return accounts[accountname]
-        except KeyError:
-            logger.error('Couldn''t find this account: %s' % accountname)
-            exit(-1)
-
-    def getpayee(payeename):
-        try:
-            logger.debug('searching for payee %s' % payeename)
-            return payees[payeename]
-        except KeyError:
-            logger.debug('Couldn''t find this payee: %s' % payeename)
-            payee = Payee(name=payeename)
-            client.budget.be_payees.append(payee)
-            return payee
-
-    def getsubcategory(categoryname):
-        try:
-            logger.debug('searching for subcategory %s' % categoryname)
-            return subcategories[categoryname]
-        except KeyError:
-            get_logger(args).debug('Couldn''t find this category: %s' % categoryname)
-            exit(-1)
-
     if 'account' not in schema.headers:
-        entities_account_id = getaccount(args.accountname).id
+        entities_account_id = get_account(client,args.accountname).id
 
     if ('inflow' in schema.headers and 'outflow' in schema.headers) or 'amount' in schema.headers:
         pass
@@ -133,29 +100,28 @@ def do_csvimport(args, client=None):
             get_logger(args).debug('read line %s' % row)
             try:
                 result = csvrow(*list(schema.convert_row(*row, fail_fast=True)))
-            except InvalidCastError:
+            except InvalidCastError,e:
+                logger.warning('Invalid Cast Error %s, ignoring line'%e)
                 continue
-            except ConversionError:
+            except ConversionError,e:
+                logger.warning('Conversion Error %s, ignoring line' % e)
                 continue
             if 'account' in schema.headers:
-                entities_account_id = getaccount(result.account).id
+                entities_account_id = get_account(client,result.account).id
             if 'inflow' in schema.headers and 'outflow' in schema.headers:
                 amount = result.inflow - result.outflow
             elif 'amount' in schema.headers:
                 amount = result.amount
-            else:
-                get_logger(args).error('Couldn''t find this account: %s' % args.accountname)
-                exit(-1)
 
             if 'category' in schema.headers and result.category:
-                entities_subcategory_id = getsubcategory(result.category).id
+                entities_subcategory_id = get_subcategory(client,result.category).id
             else:
                 entities_subcategory_id = None
             if 'payee' in schema.headers:
                 imported_payee = result.payee
             else:
                 imported_payee = ''
-            entities_payee_id = getpayee(imported_payee).id
+            entities_payee_id = get_payee(client,imported_payee).id
             if 'memo' in schema.headers:
                 memo = result.memo
             else:
@@ -163,7 +129,7 @@ def do_csvimport(args, client=None):
 
             transaction = Transaction(
                 entities_account_id=entities_account_id,
-                amount=amount,
+                amount=float(amount),
                 date=result.date,
                 entities_payee_id=entities_payee_id,
                 entities_subcategory_id=entities_subcategory_id,
@@ -178,8 +144,13 @@ def do_csvimport(args, client=None):
                 transactions.append(transaction)
             else:
                 get_logger(args).debug('Duplicate transaction found %s ' % transaction.getdict())
+    return transactions
 
-    client.add_transactions(transactions)
+
+def do_csvimport(args, client=None):
+    if client is None:
+        client = clientfromargs(args)
+    client.add_transactions(transaction_list(args,client))
 
 
 if __name__ == "__main__":

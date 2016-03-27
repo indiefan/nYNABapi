@@ -6,7 +6,8 @@ from ofxtools import OFXTree
 
 from pynYNAB.Client import clientfromargs
 from pynYNAB.config import test_common_args
-from pynYNAB.schema.budget import Transaction, Payee
+from pynYNAB.schema.budget import Transaction
+from pynYNAB.scripts.common import get_payee
 
 
 def ofximport_main():
@@ -23,7 +24,7 @@ def ofximport_main():
     do_ofximport(args)
 
 
-def do_ofximport(args, client=None):
+def transaction_list(args, client=None):
     if client is None:
         client = clientfromargs(args)
 
@@ -34,6 +35,8 @@ def do_ofximport(args, client=None):
 
     accounts = client.budget.be_accounts
     accountvsnotes = {account.note: account for account in accounts if account.note is not None}
+
+    transactions=[]
 
     for stmt in stmts:
         key = stmt.account.bankid + ' ' + stmt.account.branchid + ' ' + stmt.account.acctid
@@ -51,42 +54,40 @@ def do_ofximport(args, client=None):
                 account.note += addon
             else:
                 account.note = addon
-            client.budget.be_accounts.modify(account)
             client.sync()
-        else:
-            for note in accountvsnotes:
-                if key in note:
-                    account = accountvsnotes[note]
+        for note in accountvsnotes:
+            if key in note:
+                account = accountvsnotes[note]
 
-                    imported_date = datetime.now().date()
+                imported_date = datetime.now().date()
 
-                    for ofx_transaction in stmt.transactions:
-                        payee_name = ofx_transaction.name if ofx_transaction.payee is None else ofx_transaction.payee
-                        try:
-                            payee = next(p for p in client.budget.be_payees if p.name == payee_name)
-                        except StopIteration:
-                            payee = Payee(
-                                name=payee_name
-                            )
-                            client.budget.be_payees.append(payee)
-                            client.sync()
+                for ofx_transaction in stmt.transactions:
+                    payee_name = ofx_transaction.name if ofx_transaction.payee is None else ofx_transaction.payee
+                    payee=get_payee(client,payee_name)
 
-                        # use ftid so we don't import duplicates
-                        if not any(ofx_transaction.fitid in transaction.memo for transaction in
-                                   client.budget.be_transactions if
-                                   transaction.memo is not None and transaction.entities_account_id == account.id):
-                            transaction = Transaction(
-                                date=ofx_transaction.dtposted,
-                                memo=ofx_transaction.memo + '    ' + ofx_transaction.fitid,
-                                imported_payee=payee_name,
-                                entities_payee_id=payee.id,
-                                imported_date=imported_date,
-                                source="Imported",
-                                check_number=ofx_transaction.checknum,
-                                amount=float(ofx_transaction.trnamt),
-                                entities_account_id=account.id
-                            )
-                            client.add_transaction(transaction)
+                    # use ftid so we don't import duplicates
+                    if not any(ofx_transaction.fitid in transaction.memo for transaction in
+                               client.budget.be_transactions if
+                               transaction.memo is not None and transaction.entities_account_id == account.id):
+                        transaction = Transaction(
+                            date=ofx_transaction.dtposted.date(),
+                            memo=ofx_transaction.memo + '    ' + ofx_transaction.fitid,
+                            imported_payee=payee_name,
+                            entities_payee_id=payee.id,
+                            imported_date=imported_date,
+                            source="Imported",
+                            check_number=ofx_transaction.checknum,
+                            amount=float(ofx_transaction.trnamt),
+                            entities_account_id=account.id
+                        )
+                        transactions.append(transaction)
+    return transactions
+
+
+def do_ofximport(args, client=None):
+    if client is None:
+        client = clientfromargs(args)
+    client.add_transactions(transaction_list(args,client))
 
 
 if __name__ == "__main__":

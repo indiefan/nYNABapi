@@ -1,3 +1,4 @@
+from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import class_mapper, RelationshipProperty, ColumnProperty
 
 from pynYNAB.Entity import obj_from_dict
@@ -16,6 +17,10 @@ class ListOfEntities(RelationshipProperty):
 class Root(Entity):
     OPNAME = ''
     Fields = {}
+
+    @declared_attr
+    def __tablename__(cls):
+        return cls.__name__.lower()
 
     def __init__(self, *args, **kwargs):
         self.knowledge = 0

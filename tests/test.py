@@ -9,9 +9,9 @@ from pynYNAB.db import Base
 from pynYNAB.db.Entity import Column
 from pynYNAB.db.Types import Amount
 from pynYNAB.db.db import session_scope
-from pynYNAB.schema.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
-    MonthlyAccountCalculation, MonthlyBudget, MonthlySubcategoryBudget, MonthlyBudgetCalculation, \
-    MonthlySubcategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
+from pynYNAB.schema.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, SubCategory, \
+    MonthlyAccountCalculation, MonthlyBudget, MonthlySubCategoryBudget, MonthlyBudgetCalculation, \
+    MonthlySubCategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
     ScheduledTransaction, Setting, Subtransaction, Budget, BudgetEntity
 from pynYNAB.schema.catalog import BudgetVersion, User, UserBudget, UserSetting
 
@@ -23,15 +23,15 @@ types = [
     MonthlyAccountCalculation,
     MonthlyBudget,
     MonthlyBudgetCalculation,
-    MonthlySubcategoryBudget,
-    MonthlySubcategoryBudgetCalculation,
+    MonthlySubCategoryBudget,
+    MonthlySubCategoryBudgetCalculation,
     Payee,
     PayeeLocation,
     PayeeRenameCondition,
     ScheduledSubtransaction,
     ScheduledTransaction,
     Setting,
-    Subcategory,
+    SubCategory,
     Subtransaction,
     Transaction,
     BudgetVersion,
