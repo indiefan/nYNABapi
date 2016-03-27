@@ -1,4 +1,6 @@
 import json
+
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import class_mapper, ColumnProperty
 
 from pynYNAB.db.Entity import EntityBase
@@ -39,15 +41,24 @@ class ComplexEncoder(json.JSONEncoder):
 def obj_from_dict(obj_type, dictionary):
     objdict = {}
     obt = obj_type()
+    logger=get_logger()
+    logger.debug('Filtering dict to create %s from dict %s' % (obt, dictionary))
     for key, value in dictionary.items():
         try:
             field = class_mapper(obt.__class__).get_property(key)
-        except KeyError:
-            get_logger().error('Encountered field %s in a dictionary to create an entity of type %s ' % (key, obj_type))
-            raise ValueError()
+        except InvalidRequestError:
+            if key in obt.__mapper__.all_orm_descriptors:
+                logger.info('ignored a key in an incoming dictionary, most likely a calculated field')
+                pass
+            else:
+                logger.error(
+                    'Encountered unknown field %s in a dictionary to create an entity of type %s ' % (key, obj_type))
+                logger.error(
+                    'Most probably the YNAB API changed, please add that field to the entities schema')
+                raise ValueError()
         if isinstance(field, ColumnProperty):
             objdict[key] = value
-
+    logger.debug('Creating a %s from dict %s' % (obt, objdict))
     return obj_type(**objdict)
 
 

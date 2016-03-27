@@ -19,10 +19,6 @@ from pynYNAB.schema.enums import AccountTypes, Sources
 class Budget(Root, Base):
     OPNAME = 'syncBudgetData'
 
-    def __init__(self):
-        super(Budget, self).__init__()
-        self.budget_version_id = None
-
     be_transactions = ListOfEntities("Transaction")
     be_master_categories = ListOfEntities('MasterCategory')
     be_settings = ListOfEntities('Setting')
@@ -43,6 +39,9 @@ class Budget(Root, Base):
     be_accounts = ListOfEntities('Account')
     last_month = Column(Date())
     first_month = Column(Date())
+
+    budget_version_id = Column(String(36),ForeignKey('budgetversion.id'))
+    budget_version = relationship('BudgetVersion')
 
     def get_request_data(self):
         k, request_data = super(Budget, self).get_request_data()

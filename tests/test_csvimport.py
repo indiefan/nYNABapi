@@ -132,7 +132,7 @@ class TestCsv(CommonLive):
         accountCash = self.util_get_empty_account_by_name_if_doesnt_exist('Cash')
 
         Transactions = [
-            self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Buying pants',
+            self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Coffee',
                        accountCash),
         ]
 

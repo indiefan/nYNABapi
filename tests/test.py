@@ -1,33 +1,75 @@
 import json
 import unittest
 
-from sqlalchemy import Column
-from sqlalchemy import Integer
+from datetime import datetime
+from sqlalchemy import Integer,Date
 
 from pynYNAB.Entity import ComplexEncoder, obj_from_dict
 from pynYNAB.db import Base
-from pynYNAB.db.Entity import Entity
+from pynYNAB.db.Entity import Entity, Column
+from pynYNAB.db.Types import Amount
 from pynYNAB.db.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
     MonthlyAccountCalculation, MonthlyBudget, MonthlySubcategoryBudget, MonthlyBudgetCalculation, \
     MonthlySubcategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
-    ScheduledTransaction, Setting, Subtransaction, TransactionGroup, Budget
+    ScheduledTransaction, Setting, Subtransaction, TransactionGroup, Budget, BudgetEntity
 from pynYNAB.db.catalog import BudgetVersion, CatalogBudget, User, UserBudget, UserSetting
-from pynYNAB.db.db import session_scope
+from pynYNAB.db.db import session_scope, Root
 
+types = [
+    Account,
+    AccountCalculation,
+    AccountMapping,
+    MasterCategory,
+    MonthlyAccountCalculation,
+    MonthlyBudget,
+    MonthlyBudgetCalculation,
+    MonthlySubcategoryBudget,
+    MonthlySubcategoryBudgetCalculation,
+    Payee,
+    PayeeLocation,
+    PayeeRenameCondition,
+    ScheduledSubtransaction,
+    ScheduledTransaction,
+    Setting,
+    Subcategory,
+    Subtransaction,
+    Transaction,
+    BudgetVersion,
+    User,
+    UserBudget,
+    UserSetting
+]
 
 class Test1(unittest.TestCase):
     maxDiff = None
 
     def testEntityjson(self):
-        class MyEntity(Entity, Base):
-            greatfield = Column(Integer(), default=2)
+        for t in types:
+            obj = t()
+            jsonroundtrip = json.loads(json.dumps(obj, cls=ComplexEncoder))
+            self.assertEqual(jsonroundtrip, obj.getdict())
+            obj2 = obj_from_dict(t, jsonroundtrip)
 
-        obj = MyEntity()
-        jsonroundtrip = json.loads(json.dumps(obj, cls=ComplexEncoder))
-        self.assertEqual(jsonroundtrip, obj.getdict())
-        obj2 = obj_from_dict(MyEntity, jsonroundtrip)
+            self.assertEqual(obj, obj2)
 
-        self.assertEqual(obj, obj2)
+    def testconvertout(self):
+        class MyEntity(BudgetEntity,Base):
+            amount=Column(Amount())
+            date = Column(Date())
+
+        obj=MyEntity()
+
+        result={}
+        result['amount'] = 10000
+        result['date'] = '2016-10-23'
+
+        result=MyEntity(**MyEntity.convert_out(result))
+
+        self.assertEqual(result.amount,10)
+        self.assertEqual(result.date,datetime(2016,10,23).date())
+
+        pass
+
 
     def testequality(self):
         tr1 = Transaction()
@@ -42,35 +84,6 @@ class Test1(unittest.TestCase):
         tr1 = Transaction()
         tr2 = Transaction()
         self.assertEqual(Transaction.dedupinfo(tr1), Transaction.dedupinfo(tr2))
-
-    def testimports(self):
-        types = [
-            Account,
-            AccountCalculation,
-            AccountMapping,
-            Budget,
-            MasterCategory,
-            MonthlyAccountCalculation,
-            MonthlyBudget,
-            MonthlyBudgetCalculation,
-            MonthlySubcategoryBudget,
-            MonthlySubcategoryBudgetCalculation,
-            Payee,
-            PayeeLocation,
-            PayeeRenameCondition,
-            ScheduledSubtransaction,
-            ScheduledTransaction,
-            Setting,
-            Subcategory,
-            Subtransaction,
-            Transaction,
-            TransactionGroup,
-            BudgetVersion,
-            CatalogBudget,
-            User,
-            UserBudget,
-            UserSetting
-        ]
 
     def testupdatechangedentities(self):
         obj = Budget()
