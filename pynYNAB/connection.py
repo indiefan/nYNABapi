@@ -5,8 +5,8 @@ from time import sleep
 import requests
 from requests.cookies import RequestsCookieJar
 
-from pynYNAB.Entity import ComplexEncoder
 from pynYNAB.config import get_logger
+from pynYNAB.db.Entity import EntityBase
 from pynYNAB.utils import ratelimited
 
 
@@ -15,6 +15,14 @@ class NYnabConnectionError(Exception):
 
 
 requests.packages.urllib3.disable_warnings()
+
+
+class ComplexEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, EntityBase):
+            return obj.get_dict(convert=True)
+        else:
+            return json.JSONEncoder.default(self, obj)
 
 
 class nYnabConnection(object):

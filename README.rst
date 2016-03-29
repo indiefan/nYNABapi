@@ -7,12 +7,12 @@ a python client for the new YNAB API
 Installation
 ------------
 
-download the source, then call `python setup.py install`
+`pip install pynYNAB` (might lag behind the code here), or download the source, then call `python setup.py install`
 
 Usage
 -----
 
-Either code your own script that uses the pynYNAB api, or use the provided scripts, ofximport, YNAB4 migrate, csvimport
+Either code your own script that uses the pynYNAB library, or use the provided scripts, ofximport, YNAB4 migrate, csvimport
 
 Scripts Documentation
 ---------------------
@@ -26,7 +26,8 @@ nYNAB is organised around a root object, here it is a nYnabClient object. It is 
 which handles the requests to the server (app.youneedabudget.com and its api endpoint /api/v1/catalog),
 using the same commands that the Javascript app at app.youneedabudget.com uses internally.
 
-The connection object needs email and password for the nYNAB account
+The connection object needs email and password for the nYNAB account, either provide it on the command line (see the
+scripts help messages), or modify the ynab.conf file (its path, which depends on your OS, will be shown at first run)
 
 Once you have created your nYnabClient object, all data should have already been synced up with YNAB's servers. If you
 need fresh data, call reload on the nYnabClient.
@@ -35,8 +36,8 @@ All the entity handling is done through the Budget and Catalog objects, they con
 as be_accounts, be_transactions, ce_user_settings, etc. Look into the budget/catalog for the schema.
 
 In order to write some data to YNAB servers for your budget, you just need to modify a collection in those Budget/Catalog 
-objects then call nYnabobject.sync. To append a new entity, delete or modify an existing one, call the appropriate
-methods on a collection inside the budget or catalog objects.
+objects then call nYnabobject.sync. You can append or remove an element in those collections, or modify a member, and
+the library wil keep track of the changes to send once you issue sync()
     
 I've provided some tested methods e.g. add_account, add_transaction, in the nYnabClient class to
 add/delete accounts and transactions as examples. Some actions are not always simple (e.g., to add an account, 
@@ -52,9 +53,12 @@ catching the error id request_throttled and waiting the time specified in the Re
 Approach of preventing Harm  
 ---------------------------
 
-I've taken all precautionary steps so that this python Client can't affect YNAB even if used too widely. 
+I've taken all precautionary steps so that this python Client can't affect YNAB even if used too widely.
+
 * It honors requests by the server to throttle its requests  >  Same mechanisme that the JS app uses
-* It self-limits the requests to 5 request per second 
+
+* It self-limits the requests to 5 request per second
+
 * It clearly identifies itself by User-Agent > Easy to lock it out if it causes trouble
 
 

@@ -10,8 +10,7 @@ class Base(BaseModel):
 
     def __init__(self, **kwargs):
         self.initialized = False
-        filteredkwargs = {k: v for k, v in kwargs.items() if k in self.__mapper__.column_attrs}
-        super(Base, self).__init__(**filteredkwargs)
+        super(Base, self).__init__(**kwargs)
         for attr in self.__mapper__.column_attrs:
             if attr.key in kwargs:
                 continue

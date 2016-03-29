@@ -7,7 +7,6 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.types import Date, Boolean, String, Enum, Integer
 
-from pynYNAB.Entity import on_budget_dict
 from pynYNAB.db import Base
 from pynYNAB.db.Entity import Entity, Column, EntityBase
 from pynYNAB.db.Types import Amount, IgnorableString, IgnorableBoolean
@@ -104,10 +103,6 @@ class Transaction(BudgetEntity, Base):
     transfer_subtransaction_id = Column(String(36), ForeignKey('subtransaction.id'))
     transfer_transaction_id = Column(String(36), ForeignKey('transaction.id'))
     ynab_id = Column(String())
-
-    @classmethod
-    def dedupinfo(cls, row):
-        return row.amount, row.date, row.entities_account_id, row.entities_payee_id
 
 
 class MasterCategory(BudgetEntity, Base):
@@ -306,6 +301,23 @@ class PayeeRenameCondition(BudgetEntity, Base):
     entities_payee_id = Column(String(36), ForeignKey('payee.id'))
     operand = Column(String())
     operator = Column(String())
+
+
+on_budget_dict = dict(
+    undef=None,
+    Checking=True,
+    Savings=True,
+    CreditCard=True,
+    Cash=True,
+    LineOfCredit=True,
+    Paypal=True,
+    MerchantAccount=True,
+    InvestmentAccount=False,
+    Mortgage=False,
+    OtherAsset=False,
+    OtherLiability=False,
+)
+on_budget_dict[None] = None
 
 
 class Account(BudgetEntity, Base):

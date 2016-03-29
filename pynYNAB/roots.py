@@ -1,7 +1,6 @@
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import class_mapper, RelationshipProperty, ColumnProperty
 
-from pynYNAB.Entity import obj_from_dict
 from pynYNAB.db.Entity import Entity
 from pynYNAB.db.track import Tracker
 
@@ -57,7 +56,7 @@ class Root(Entity):
                 for entityDict in value:
                     if not entityDict.get('is_tombstone'):
                         newdict = self.listfields[name].mapper.class_.convert_out(entityDict)
-                        obj = obj_from_dict(self.listfields[name].mapper.class_, newdict)
+                        obj = self.listfields[name].mapper.class_.from_dict(newdict)
                         try:
                             changed_entities[name].append(obj)
                         except KeyError:

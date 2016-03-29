@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import Date
 
-from pynYNAB.Entity import ComplexEncoder, obj_from_dict
+from pynYNAB.connection import ComplexEncoder
 from pynYNAB.db import Base
 from pynYNAB.db.Entity import Column
 from pynYNAB.db.Types import Amount
@@ -40,6 +40,7 @@ types = [
     UserSetting
 ]
 
+
 class Test1(unittest.TestCase):
     maxDiff = None
 
@@ -47,8 +48,8 @@ class Test1(unittest.TestCase):
         for t in types:
             obj = t()
             jsonroundtrip = json.loads(json.dumps(obj, cls=ComplexEncoder))
-            self.assertEqual(jsonroundtrip, obj.getdict())
-            obj2 = obj_from_dict(t, jsonroundtrip)
+            self.assertEqual(jsonroundtrip, obj.get_dict(convert = True))
+            obj2 = t.from_dict(jsonroundtrip)
 
             self.assertEqual(obj, obj2)
 
@@ -72,8 +73,8 @@ class Test1(unittest.TestCase):
 
 
     def testequality(self):
-        tr1 = Transaction()
-        tr2 = Transaction()
+        tr1 = Transaction(amount=1)
+        tr2 = Transaction(amount=2)
         self.assertNotEqual(tr1, tr2)
 
         tr1 = Transaction(entities_account_id=1)
@@ -83,7 +84,7 @@ class Test1(unittest.TestCase):
     def test_hash(self):
         tr1 = Transaction()
         tr2 = Transaction()
-        self.assertEqual(Transaction.dedupinfo(tr1), Transaction.dedupinfo(tr2))
+        self.assertEqual(hash(tr1), hash(tr2))
 
     def testupdatechangedentities(self):
         obj = Budget()
@@ -124,7 +125,7 @@ class Test1(unittest.TestCase):
             budget.be_accounts.append(obj)
             session.add(budget)
 
-            obj2 = Account(**obj.getdict())
+            obj2 = Account.from_dict(obj.get_dict())
             obj2.is_tombstone = True
             CE = {'be_accounts': [obj2]}
 

@@ -19,6 +19,10 @@ scriptsdir = os.path.dirname(os.path.abspath(__file__))
 schemas_dir = os.path.join(scriptsdir, 'csv_schemas')
 
 
+def dedupinfo(tr):
+    return tr.amount, tr.date, tr.entities_account_id, tr.entities_payee_id
+
+
 def csvimport_main():
     print('pynYNAB CSV import')
     """Manually import a CSV into a nYNAB budget"""
@@ -87,7 +91,7 @@ def transaction_list(args, client=None):
 
     imported_date = datetime.now().date()
 
-    transactions_dedup = map(Transaction.dedupinfo, client.budget.be_transactions)
+    transactions_dedup = map(dedupinfo, client.budget.be_transactions)
 
     get_logger(args).debug('OK starting the import from %s ' % os.path.abspath(args.csvfile))
     with open(args.csvfile, 'r') as inputfile:
@@ -100,10 +104,10 @@ def transaction_list(args, client=None):
             get_logger(args).debug('read line %s' % row)
             try:
                 result = csvrow(*list(schema.convert_row(*row, fail_fast=True)))
-            except InvalidCastError,e:
+            except InvalidCastError as e:
                 logger.warning('Invalid Cast Error %s, ignoring line'%e)
                 continue
-            except ConversionError,e:
+            except ConversionError as e:
                 logger.warning('Conversion Error %s, ignoring line' % e)
                 continue
             if 'account' in schema.headers:
@@ -114,7 +118,8 @@ def transaction_list(args, client=None):
                 amount = result.amount
 
             if 'category' in schema.headers and result.category:
-                entities_subcategory_id = get_subcategory(client,result.category).id
+                master,sub=result.category.split(':')
+                entities_subcategory_id = get_subcategory(client,master,sub).id
             else:
                 entities_subcategory_id = None
             if 'payee' in schema.headers:
@@ -139,11 +144,11 @@ def transaction_list(args, client=None):
                 source="Imported"
             )
 
-            if args.import_duplicates or (not Transaction.dedupinfo(transaction) in transactions_dedup):
-                get_logger(args).debug('Appending transaction %s ' % transaction.getdict())
+            if args.import_duplicates or (not dedupinfo(transaction) in transactions_dedup):
+                get_logger(args).debug('Appending transaction %s ' % transaction.get_dict())
                 transactions.append(transaction)
             else:
-                get_logger(args).debug('Duplicate transaction found %s ' % transaction.getdict())
+                get_logger(args).debug('Duplicate transaction found %s ' % transaction.get_dict())
     return transactions
 
 

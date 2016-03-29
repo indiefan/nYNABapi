@@ -9,19 +9,19 @@ from datetime import datetime, date
 
 import configargparse
 
-from pynYNAB.Entity import ComplexEncoder
-from pynYNAB.db.db import session_scope
+from pynYNAB.connection import ComplexEncoder
 from pynYNAB.schema.budget import Transaction, Account, Payee, MasterCategory, SubCategory
-from pynYNAB.scripts.csvimport import transaction_list
+from pynYNAB.scripts.common import get_payee, get_account, get_subcategory
+from pynYNAB.scripts.csvimport import transaction_list, dedupinfo
 from tests.mock import MockClient
 
 
 class TestCsv(unittest.TestCase):
-    def getTr(self, date, payee, amount, memo, account):
+    def getTr(self, date, payee_name, amount, memo, account_name):
         imported_date = datetime.now().date()
 
-        payee = Payee(name=payee)
-        self.client.budget.be_payees.append(payee)
+        payee = get_payee(self.client,payee_name,create=True)
+        account = get_account(self.client,account_name,create=True)
 
         return Transaction(
             entities_account_id=account.id,
@@ -65,10 +65,8 @@ class TestCsv(unittest.TestCase):
 """
         self.writecsv(content)
 
-        accountCredit = Account(account_name='Credit')
-        self.client.budget.be_accounts.append(accountCredit)
-        transaction = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
-                                 accountCredit)
+        transaction = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.' , -20, 'Buying pants',
+                                 'Credit')
 
         self.client.budget.be_transactions.append(transaction)
 
@@ -81,11 +79,9 @@ class TestCsv(unittest.TestCase):
 2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
 """
         self.writecsv(content)
-        accountCash = Account(account_name='Cash')
-        self.client.budget.be_accounts.append(accountCash)
 
         transaction = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
-                                 accountCash)
+                                 'Cash')
 
         args = self.args
         args.import_duplicates = True
@@ -103,29 +99,19 @@ class TestCsv(unittest.TestCase):
         """
 
         self.args.schema = 'ynab'
+        self.args.accountname = 'Checking Account'
 
         self.writecsv(content)
-        self.args.accountname = 'Checking Account'
-        accountChecking = Account(account_name='Checking Account')
-        self.client.budget.be_accounts.append(accountChecking)
 
-        MC1 = MasterCategory(name='MC1')
-        MC2 = MasterCategory(name='MC2')
-
-        self.client.budget.be_master_categories.extend([MC1,MC2])
-
-        clothes = SubCategory(name='Clothes')
-        clothes.master_category = MC1
-        rent = SubCategory(name='Rent')
-        rent.master_category = MC2
-        self.client.budget.be_subcategories.extend([clothes, rent])
+        clothes = get_subcategory(self.client,'MC1','Clothes',create=True)
+        rent = get_subcategory(self.client, 'MC2', 'Rent',create=True)
 
         tr1 = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
-                         accountChecking)
+                         'Checking Account')
 
         tr1.subcategory=clothes
 
-        tr2 = self.getTr(date(year=2016, month=2, day=6), 'Mr Smith', -600, 'Landlord, Wiring', accountChecking)
+        tr2 = self.getTr(date(year=2016, month=2, day=6), 'Mr Smith', -600, 'Landlord, Wiring', 'Checking Account')
 
         tr2.subcategory=rent
 
@@ -136,21 +122,25 @@ class TestCsv(unittest.TestCase):
             print(json.dumps(
                 [trl for trl in tr_list if trl.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertIn(Transaction.dedupinfo(tr), map(Transaction.dedupinfo, tr_list))
+            self.assertIn(dedupinfo(tr), map(dedupinfo, tr_list))
 
-    def test_badaccount(self):
+    def test_inexistent_account(self):
         content = """Date,Payee,Amount,Memo,Account
 2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
 """
         self.writecsv(content)
+
+        self.client.budget.be_accounts.remove(get_account(self.client,'Cash',create=True))
         self.assertRaises(SystemExit,lambda:transaction_list(self.args, self.client))
 
-        def test_badaccount(self):
-            content = """Date,Payee,Amount,Memo,Account
-    2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
-    """
-            self.writecsv(content)
-            self.assertRaises(SystemExit, lambda: transaction_list(self.args, self.client))
+    def test_inexistent_payee(self):
+        content = """Date,Payee,Amount,Memo,Account
+2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
+"""
+        self.writecsv(content)
+
+        self.client.budget.be_payees.remove(get_payee(self.client, 'Super Pants Inc.', create=True))
+        self.assertRaises(SystemExit, lambda: transaction_list(self.args, self.client))
 
     def test_import(self):
         content = """Date,Payee,Amount,Memo,Account
@@ -163,19 +153,13 @@ class TestCsv(unittest.TestCase):
 2016-02-03,,10,Saving!,Savings
         """
         self.writecsv(content)
-        accountCash = Account(account_name='Cash')
-        accountChecking = Account(account_name='Checking Account')
-        accountSavings = Account(account_name='Savings')
-        self.client.budget.be_accounts.append(accountCash)
-        self.client.budget.be_accounts.append(accountChecking)
-        self.client.budget.be_accounts.append(accountSavings)
 
         Transactions = [
             self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants',
-                       accountCash),
-            self.getTr(datetime(year=2016, month=2, day=2).date(), 'Thai Restaurant', -10, 'Food', accountChecking),
-            self.getTr(datetime(year=2016, month=2, day=2).date(), 'Chinese Restaurant', -5, 'Food', accountCash),
-            self.getTr(datetime(year=2016, month=2, day=3).date(), '', 10, 'Saving!', accountSavings),
+                       'Cash'),
+            self.getTr(datetime(year=2016, month=2, day=2).date(), 'Thai Restaurant', -10, 'Food', 'Checking Account'),
+            self.getTr(datetime(year=2016, month=2, day=2).date(), 'Chinese Restaurant', -5, 'Food', 'Cash'),
+            self.getTr(datetime(year=2016, month=2, day=3).date(), '', 10, 'Saving!', 'Savings'),
         ]
 
         tr_list = transaction_list(self.args, self.client)
@@ -185,19 +169,17 @@ class TestCsv(unittest.TestCase):
             print(json.dumps(
                 [tr2 for tr2 in tr_list if tr2.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertIn(Transaction.dedupinfo(tr), map(Transaction.dedupinfo, tr_list))
+            self.assertIn(dedupinfo(tr), map(dedupinfo, tr_list))
 
     def test_encoded(self):
         content = u"""Date,Payee,Amount,Memo,Account
 2016-02-01,Grand Café,-3,Coffee,Cash
 """
         self.writecsv(content, encoding='utf-8')
-        accountCash = Account(account_name='Cash')
-        self.client.budget.be_accounts.append(accountCash)
 
         Transactions = [
             self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Coffee',
-                       accountCash),
+                       'Cash'),
         ]
 
         tr_list = transaction_list(self.args, self.client)
@@ -207,4 +189,4 @@ class TestCsv(unittest.TestCase):
             print(json.dumps(
                 [tr2 for tr2 in tr_list if tr2.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertIn(Transaction.dedupinfo(tr), list(map(Transaction.dedupinfo, tr_list)))
+            self.assertIn(dedupinfo(tr), list(map(dedupinfo, tr_list)))
