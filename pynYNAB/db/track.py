@@ -29,8 +29,9 @@ class Tracker(object):
 
     def track_remove(self, target, value, initiator):
         self.logger.debug("track_remove %s" % value)
-        value.is_tombstone = True
-        self.track_append(target, value, initiator)
+        valuecopy = value.copy()
+        valuecopy.is_tombstone = True
+        self.track_append(target, valuecopy, initiator)
 
     def track_set(self, target, value, oldvalue, initiator):
         self.logger.debug("track_set %s %s => %s" % (initiator.key, oldvalue, value))
@@ -40,8 +41,6 @@ class Tracker(object):
     def track_dispose(self, target, value, initiator):
         self.logger.debug("track_dispose %s" % value)
         l = getattr(target, initiator.attr.key)
-        # for v in l:
-        #     l.remove(v)
         l.track = self
 
     def add_set_tracker(self, otherclass, prop2):

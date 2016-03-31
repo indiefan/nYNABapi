@@ -47,3 +47,7 @@ def get_subcategory(client, master_category_name, subcategory_name,create=False)
         else:
             logger.error('Couldn''t find this master:subcategory %s:%s'%(master_category_name,subcategory_name))
             exit(-1)
+
+
+def transaction_dedup(tr):
+    return tr.amount, tr.date, tr.entities_account_id, tr.entities_payee_id

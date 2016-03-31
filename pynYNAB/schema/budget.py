@@ -1,15 +1,17 @@
 import random
 
+from datetime import datetime, date
 from sqlalchemy import Column as OriginalColumn
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship,validates
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.types import Date, Boolean, String, Enum, Integer
 
 from pynYNAB.db import Base
 from pynYNAB.db.Entity import Entity, Column, EntityBase
-from pynYNAB.db.Types import Amount, IgnorableString, IgnorableBoolean
+from pynYNAB.db.Types import Amount, IgnorableString, IgnorableBoolean, Amounthybrid
 from pynYNAB.db.Types import Dates
 from pynYNAB.roots import Root, ListOfEntities
 from pynYNAB.schema.enums import AccountTypes, Sources
@@ -82,13 +84,33 @@ class BudgetEntity(Entity):
 class Transaction(BudgetEntity, Base):
     accepted = Column(Boolean(), default=True, nullable=False)
     amount = Column(Amount(), default=0)
-    cash_amount = Column(Amount(), default=0)
+
+    @Amounthybrid
+    def cash_amount(self):
+        if self.account and self.account.account_type != AccountTypes.CreditCard:
+            return self.amount
+        return 0
+
+    @Amounthybrid
+    def credit_amount(self):
+        if self.account and self.account.account_type == AccountTypes.CreditCard:
+            return self.amount
+        return 0
+
     check_number = Column(String())
     cleared = Column(String(), default='Uncleared')
-    credit_amount = Column(Amount(), default=0)
     date = Column(Date())
+
+    @validates('date_entered_from_schedule','date')
+    def validates_date(self,key,value):
+        if isinstance(value,datetime):
+            value = value.date()
+        return value
+
     date_entered_from_schedule = Column(Date())
+
     entities_account_id = Column(String(36), ForeignKey('account.id'))
+    account = relationship('Account',foreign_keys=[entities_account_id])
     entities_payee_id = Column(String(36), ForeignKey('payee.id'))
     entities_scheduled_transaction_id = Column(String(36), ForeignKey('scheduledtransaction.id'))
     entities_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
@@ -103,6 +125,7 @@ class Transaction(BudgetEntity, Base):
     transfer_subtransaction_id = Column(String(36), ForeignKey('subtransaction.id'))
     transfer_transaction_id = Column(String(36), ForeignKey('transaction.id'))
     ynab_id = Column(String())
+
 
 
 class MasterCategory(BudgetEntity, Base):
@@ -156,12 +179,25 @@ class AccountMapping(BudgetEntity, Base):
 
 class Subtransaction(BudgetEntity, Base):
     amount = Column(Amount())
-    cash_amount = Column(Amount())
+
+    @Amounthybrid
+    def cash_amount(self):
+        if self.transaction and self.transaction.account and self.transaction.account.account_type != AccountTypes.CreditCard:
+            return self.amount
+        return 0
+
+    @Amounthybrid
+    def credit_amount(self):
+        if self.transaction and self.transaction.account and self.transaction.account.account_type == AccountTypes.CreditCard:
+            return self.amount
+        return 0
+
     check_number = Column(String())
-    credit_amount = Column(Amount())
     entities_payee_id = Column(String(36), ForeignKey('payee.id'))
     entities_subcategory_id = Column(String(36), ForeignKey('subcategory.id'))
     entities_transaction_id = Column(String(36), ForeignKey('transaction.id'))
+    transaction = relationship('Transaction', foreign_keys=[entities_transaction_id])
+
     memo = Column(String())
     sortable_index = Column(Integer())
     transfer_account_id = Column(String(36), ForeignKey('account.id'))

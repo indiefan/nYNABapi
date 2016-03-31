@@ -11,8 +11,8 @@ import configargparse
 
 from pynYNAB.connection import ComplexEncoder
 from pynYNAB.schema.budget import Transaction, Account, Payee, MasterCategory, SubCategory
-from pynYNAB.scripts.common import get_payee, get_account, get_subcategory
-from pynYNAB.scripts.csvimport import transaction_list, dedupinfo
+from pynYNAB.scripts.common import get_payee, get_account, get_subcategory, transaction_dedup
+from pynYNAB.scripts.csvimport import transaction_list, transaction_dedup
 from tests.mock import MockClient
 
 
@@ -31,7 +31,6 @@ class TestCsv(unittest.TestCase):
             source='Imported',
             memo=memo,
             amount=amount,
-            cash_amount=amount,
             imported_date=imported_date
         )
 
@@ -43,6 +42,7 @@ class TestCsv(unittest.TestCase):
         self.args.accountname = None
         self.args.import_duplicates = False
         self.args.level = 'debug'
+        self.args.encoding = 'utf-8'
 
         try:
             os.makedirs(os.path.dirname(self.args.csvfile))
@@ -122,7 +122,7 @@ class TestCsv(unittest.TestCase):
             print(json.dumps(
                 [trl for trl in tr_list if trl.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertIn(dedupinfo(tr), map(dedupinfo, tr_list))
+            self.assertIn(transaction_dedup(tr), map(transaction_dedup, tr_list))
 
     def test_inexistent_account(self):
         content = """Date,Payee,Amount,Memo,Account
@@ -169,18 +169,19 @@ class TestCsv(unittest.TestCase):
             print(json.dumps(
                 [tr2 for tr2 in tr_list if tr2.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertIn(dedupinfo(tr), map(dedupinfo, tr_list))
+            self.assertIn(transaction_dedup(tr), map(transaction_dedup, tr_list))
 
     def test_encoded(self):
         content = u"""Date,Payee,Amount,Memo,Account
 2016-02-01,Grand Café,-3,Coffee,Cash
 """
-        self.writecsv(content, encoding='utf-8')
+        self.writecsv(content, encoding='iso-8859-1')
+        self.args.encoding='iso-8859-1'
 
-        Transactions = [
+        Transactions = {
             self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Coffee',
                        'Cash'),
-        ]
+        }
 
         tr_list = transaction_list(self.args, self.client)
 
@@ -189,4 +190,4 @@ class TestCsv(unittest.TestCase):
             print(json.dumps(
                 [tr2 for tr2 in tr_list if tr2.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertIn(dedupinfo(tr), list(map(dedupinfo, tr_list)))
+            self.assertIn(transaction_dedup(tr), list(map(transaction_dedup, tr_list)))

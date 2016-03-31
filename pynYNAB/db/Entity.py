@@ -7,7 +7,7 @@ from sqlalchemy.orm import class_mapper, ColumnProperty
 
 from pynYNAB import KeyGenerator
 from pynYNAB.config import get_logger
-from pynYNAB.db.Types import Amount, Converter, IgnorableString, IgnorableBoolean
+from pynYNAB.db.Types import Amount, Converter, IgnorableString, IgnorableBoolean, Amounthybrid
 from pynYNAB.schema import enums
 
 
@@ -29,7 +29,11 @@ class EntityBase(object):
 
         for v in class_mapper(cls).all_orm_descriptors:
             if v.extension_type is hybrid.HYBRID_PROPERTY:
-                result[v.__name__] = v.fget(self)
+                val = v.fget(self)
+                if convert:
+                    if isinstance(v, Amounthybrid):
+                        val = Converter.amount_in(val)
+                result[v.__name__] = val
 
         for col in class_mapper(cls).columns:
             if isinstance(col, Column):
@@ -53,30 +57,29 @@ class EntityBase(object):
         return result
 
     @classmethod
-    def from_dict(obj_type, dictionary):
+    def from_dict(cls, dictionary):
         objdict = {}
-        obt = obj_type()
         logger = get_logger()
-        logger.debug('Filtering dict to create %s from dict %s' % (obt, dictionary))
-        filtered = {k: v for k, v in dictionary.items() if k in obj_type.__mapper__.column_attrs}
+        logger.debug('Filtering dict to create %s from dict %s' % (cls, dictionary))
+        filtered = {k: v for k, v in dictionary.items() if k in cls.__mapper__.column_attrs}
         for key, value in filtered.items():
             try:
-                field = class_mapper(obt.__class__).get_property(key)
+                field = class_mapper(cls).get_property(key)
             except InvalidRequestError:
-                if key in obt.__mapper__.all_orm_descriptors:
+                if key in cls.__mapper__.all_orm_descriptors:
                     logger.info('ignored a key in an incoming dictionary, most likely a calculated field')
                     pass
                 else:
                     logger.error(
                         'Encountered unknown field %s in a dictionary to create an entity of type %s ' % (
-                        key, obj_type))
+                        key, cls))
                     logger.error(
                         'Most probably the YNAB API changed, please add that field to the entities schema')
                     raise ValueError()
             if isinstance(field, ColumnProperty):
                 objdict[key] = value
-        logger.debug('Creating a %s from dict %s' % (obt, objdict))
-        return obj_type(**objdict)
+        logger.debug('Creating a %s from dict %s' % (cls, objdict))
+        return cls(**objdict)
 
     @classmethod
     def convert_out(cls, d):
@@ -106,8 +109,14 @@ class EntityBase(object):
         else:
             return False
 
+    def __repr__(self):
+        return self.get_dict().__repr__()
+
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def copy(self):
+        return self.__class__.from_dict(self.get_dict())
 
 
 class Entity(EntityBase):

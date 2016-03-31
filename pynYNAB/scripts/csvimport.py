@@ -1,4 +1,4 @@
-import csv
+import codecs
 import inspect
 import json
 import os
@@ -7,20 +7,17 @@ from collections import namedtuple
 from datetime import datetime
 
 import configargparse
+import io
 from jsontableschema.exceptions import InvalidSchemaError, InvalidCastError, ConversionError
 from jsontableschema.model import SchemaModel
 
 from pynYNAB.Client import clientfromargs
 from pynYNAB.config import get_logger, test_common_args
 from pynYNAB.schema.budget import Transaction
-from pynYNAB.scripts.common import get_account, get_subcategory, get_payee
+from pynYNAB.scripts.common import get_account, get_subcategory, get_payee, transaction_dedup
 
 scriptsdir = os.path.dirname(os.path.abspath(__file__))
 schemas_dir = os.path.join(scriptsdir, 'csv_schemas')
-
-
-def dedupinfo(tr):
-    return tr.amount, tr.date, tr.entities_account_id, tr.entities_payee_id
 
 
 def csvimport_main():
@@ -34,6 +31,8 @@ def csvimport_main():
                         help='The CSV schema to use (see csv_schemas directory)')
     parser.add_argument('accountname', metavar='AccountName', type=str, nargs='?',
                         help='The nYNAB account name  to use')
+    parser.add_argument('--encoding', metavar='Encoding', type=str, default='utf-8',
+                        help='The encoding to read the CSV file')
     parser.add_argument('-import-duplicates', action='store_true',
                         help='Forces the import even if a duplicate (same date, account, amount, memo, payee) is found')
 
@@ -91,17 +90,26 @@ def transaction_list(args, client=None):
 
     imported_date = datetime.now().date()
 
-    transactions_dedup = map(dedupinfo, client.budget.be_transactions)
+    transactions_dedup = map(transaction_dedup, client.budget.be_transactions)
+
+    if sys.version[0] == '2':
+        from backports import csv
+    elif sys.version[0] == '3':
+        import csv
 
     get_logger(args).debug('OK starting the import from %s ' % os.path.abspath(args.csvfile))
-    with open(args.csvfile, 'r') as inputfile:
+
+    def open_file(filepath,encoding):
+        if sys.version[0] == '2':
+            return io.open(filepath, mode='r',encoding=encoding)
+        elif sys.version[0] == '3':
+            return open(filepath, mode='r', encoding=encoding)
+
+    with open_file(args.csvfile,args.encoding) as inputfile:
         for i in range(nheaders):
             inputfile.readline()
         for row in csv.reader(inputfile):
-            if sys.version[0] == '2':
-                row = [cell.decode('utf-8') for cell in row]
-            # row=[cell.strip() for cell in row]
-            get_logger(args).debug('read line %s' % row)
+            logger.info('read line %s' % row)
             try:
                 result = csvrow(*list(schema.convert_row(*row, fail_fast=True)))
             except InvalidCastError as e:
@@ -144,11 +152,11 @@ def transaction_list(args, client=None):
                 source="Imported"
             )
 
-            if args.import_duplicates or (not dedupinfo(transaction) in transactions_dedup):
-                get_logger(args).debug('Appending transaction %s ' % transaction.get_dict())
+            if args.import_duplicates or (not transaction_dedup(transaction) in transactions_dedup):
+                logger.info('Appending transaction %s ' % transaction.get_dict())
                 transactions.append(transaction)
             else:
-                get_logger(args).debug('Duplicate transaction found %s ' % transaction.get_dict())
+                logger.info('Duplicate transaction found %s ' % transaction.get_dict())
     return transactions
 
 

@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.sqltypes import String, Boolean, Integer
 
 
@@ -42,4 +43,7 @@ class IgnorableString(String):
 
 
 class IgnorableBoolean(Boolean):
+    pass
+
+class Amounthybrid(hybrid_property):
     pass

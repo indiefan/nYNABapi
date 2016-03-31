@@ -57,6 +57,7 @@ class nYnabClient(object):
             pass
 
     def sync(self):
+        get_logger().info('Syncing with the server....')
         # ending-starting represents the number of modifications that have been done to the data ?
         self.catalog.sync(self.connection)
         if self.budget.budget_version_id is None:
@@ -98,11 +99,9 @@ class nYnabClient(object):
             accepted=True,
             amount=balance,
             entities_subcategory_id=immediateincomeid,
-            cash_amount=0,
             cleared='Cleared',
             date=balance_date,
             entities_account_id=account.id,
-            credit_amount=0,
             entities_payee_id=startingbalanceid,
             is_tombstone=False
         )

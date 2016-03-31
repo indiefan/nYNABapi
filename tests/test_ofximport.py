@@ -103,14 +103,13 @@ class TestOFX(unittest.TestCase):
             check_number='0003445',
             memo=memo,
             amount=amount,
-            cash_amount=amount,
             imported_date=datetime.now().date()
         )
 
     def test_ofximport(self):
         tr_list = transaction_list(self.args, self.client)
         for tr in self.Transactions:
-            self.assertIn(Transaction.dedupinfo(tr), map(Transaction.dedupinfo, tr_list),
+            self.assertIn(tr, tr_list,
                           msg='couldnt find a transaction with the same hash after ofx import')
 
     def test_duplicate(self):

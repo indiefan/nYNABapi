@@ -41,7 +41,7 @@ types = [
 ]
 
 
-class Test1(unittest.TestCase):
+class Tests(unittest.TestCase):
     maxDiff = None
 
     def testEntityjson(self):
@@ -163,6 +163,7 @@ class Test1(unittest.TestCase):
         obj.be_accounts = [account2]
 
         changed = obj.get_changed_entities()
+        account.is_tombstone = True
         self.assertEqual(list(changed.keys()), ['be_accounts'])
         self.assertEqual(set(changed['be_accounts']), {account, account2})
 
@@ -172,6 +173,7 @@ class Test1(unittest.TestCase):
         obj.be_accounts.append(account)
         obj.be_accounts.track.reset()
         obj.be_accounts.remove(account)
+        account.is_tombstone = True
         self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account]})
 
     def testCE_simplechange(self):

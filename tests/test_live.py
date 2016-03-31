@@ -1,11 +1,12 @@
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from functools import wraps
 
 from common_Live import CommonLive
 from pynYNAB import KeyGenerator
 from pynYNAB.schema.budget import Transaction, Account, Subtransaction
 from pynYNAB.schema.enums import AccountTypes
+from pynYNAB.scripts.common import transaction_dedup
 
 
 class LiveTests(CommonLive):
@@ -89,67 +90,31 @@ class LiveTests(CommonLive):
 
         self.reload()
 
-        self.assertIn(transaction, self.client.budget.be_transactions)
+        self.assertIn(transaction,self.client.budget.be_transactions)
+
+        transaction_in = next(tr for tr in self.client.budget.be_transactions)
+
         self.client.delete_transaction(transaction)
         self.reload()
 
-        result = self.client.budget.be_transactions.get(transaction.id)
-        self.assertTrue(result is None)
-
-    @needs_account
-    def test_add_deletetransactions(self):
-        from datetime import datetime
-
-        transactions = [
-            Transaction(
-                amount=random.randint(-10, 10),
-                cleared='Uncleared',
-                date=datetime.now() - 8 * timedelta(days=365),
-                entities_account_id=self.account.id,
-            ), Transaction(
-                amount=random.randint(-10, 10),
-                cleared='Uncleared',
-                date=datetime.now() + 8 * timedelta(days=365),
-                entities_account_id=self.account.id,
-            ), Transaction(
-                amount=random.randint(-10, 10),
-                cleared='Uncleared',
-                date=datetime.now(),
-                entities_account_id=self.account.id,
-            )
-        ]
-
-        self.client.add_transactions(transactions)
-        print('Time for request: ' + str(self.client.connection.lastrequest_elapsed.total_seconds()) + ' s')
-
-        self.reload()
-        for transaction in transactions:
-            self.assertIn(Transaction.dedupinfo(transaction), map(Transaction.dedupinfo,self.client.budget.be_transactions))
-
-        for transaction in transactions:
-            self.client.delete_transaction(transaction)
-        self.reload()
-
-        for transaction in transactions:
-            resulttransaction = self.client.budget.be_transactions.get(transaction.id)
-            self.assertTrue(resulttransaction is None)
+        self.assertNotIn(transaction, self.client.budget.be_transactions)
 
     @needs_account
     def test_add_splittransactions(self):
         subcatsplit_id = next(subcategory.id for subcategory in self.client.budget.be_subcategories if
                               subcategory.internal_name == 'Category/__Split__')
         transaction = Transaction(
-            amount=1,
+            amount=10,
             date=datetime.now(),
             entities_account_id=self.account.id,
             entities_subcategory_id=subcatsplit_id
         )
         sub1 = Subtransaction(
-            amount=5000,
+            amount=5,
             entities_transaction_id=transaction.id
         )
         sub2 = Subtransaction(
-            amount=5000,
+            amount=5,
             entities_transaction_id=transaction.id
         )
         self.client.budget.be_transactions.append(transaction)

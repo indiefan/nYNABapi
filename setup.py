@@ -1,5 +1,6 @@
 import os.path
 
+import sys
 from setuptools import setup, find_packages
 
 # Get the long description from the relevant file
@@ -14,6 +15,10 @@ try:
 except:
     print("Conversion of long_description from markdown to reStructuredText failed, skipping...")
     pass
+
+conditional_install_requires=[]
+if sys.version[0] == '2':
+    conditional_install_requires.append('backports.csv')
 
 setup(
     name='pynYNAB',
@@ -63,7 +68,7 @@ setup(
         'jsontableschema',
         'unicodecsv',
         'appdirs'
-    ],
+    ]+conditional_install_requires,
 
     package_data={
         'pynYNAB': ['tests/*'],
