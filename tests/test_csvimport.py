@@ -10,8 +10,8 @@ from datetime import datetime, date
 import configargparse
 
 from pynYNAB.connection import ComplexEncoder
-from pynYNAB.schema.budget import Transaction, Account, Payee, MasterCategory, SubCategory
-from pynYNAB.scripts.common import get_payee, get_account, get_subcategory, transaction_dedup
+from pynYNAB.schema.budget import Transaction
+from pynYNAB.scripts.common import get_payee, get_account, get_subcategory
 from pynYNAB.scripts.csvimport import transaction_list, transaction_dedup
 from tests.mock import MockClient
 
@@ -172,14 +172,14 @@ class TestCsv(unittest.TestCase):
             self.assertIn(transaction_dedup(tr), map(transaction_dedup, tr_list))
 
     def test_encoded(self):
-        content = u"""Date,Payee,Amount,Memo,Account
+        content = """Date,Payee,Amount,Memo,Account
 2016-02-01,Grand Café,-3,Coffee,Cash
 """
         self.writecsv(content, encoding='iso-8859-1')
         self.args.encoding='iso-8859-1'
 
         Transactions = {
-            self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Coffee',
+            self.getTr(datetime(year=2016, month=2, day=1).date(), 'Grand Café', -3, 'Coffee',
                        'Cash'),
         }
 

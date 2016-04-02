@@ -39,7 +39,10 @@ def transaction_list(args, client=None):
     transactions=[]
 
     for stmt in stmts:
-        key = stmt.account.bankid + ' ' + stmt.account.branchid + ' ' + stmt.account.acctid
+        el1 = stmt.account.bankid if stmt.account.bankid else ''
+        el2 = stmt.account.branchid if stmt.account.branchid else ''
+        el3 = stmt.account.acctid if stmt.account.acctid else ''
+        key = el1 + ' ' + el2 + ' ' + el3
         if all(key not in note for note in accountvsnotes):
             if len(accounts) == 0:
                 print('No accounts available in this budget')

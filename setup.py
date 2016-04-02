@@ -58,11 +58,15 @@ setup(
 
     packages=find_packages(),
 
+    dependency_links=[
+        'https://github.com/csingley/ofxtools/archives/4a3e496d7d2a3babdeabd4e114d98fc5f2862667.zip#egg=0.3.8',
+    ],
+
     install_requires=[
         'configargparse',
         'enum34',
         'sqlalchemy',
-        'ofxtools',
+        'ofxtools<=0.3.8',
         'pynab',
         'requests',
         'jsontableschema',

@@ -108,9 +108,9 @@ class TestOFX(unittest.TestCase):
 
     def test_ofximport(self):
         tr_list = transaction_list(self.args, self.client)
+        self.assertEqual(len(tr_list),1)
         for tr in self.Transactions:
-            self.assertIn(tr, tr_list,
-                          msg='couldnt find a transaction with the same hash after ofx import')
+            self.assertIn(tr, tr_list)
 
     def test_duplicate(self):
         self.client.budget.be_transactions.extend(self.Transactions)
