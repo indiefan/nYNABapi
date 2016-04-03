@@ -92,6 +92,37 @@ class TestCsv(unittest.TestCase):
 
         self.assertEqual(len(tr_list), 1)
 
+    def test_import_categoryschema_bad_category(self):
+            content = """Date,Payee,Category,Memo,Outflow,Inflow
+2016-02-01,Super Pants Inc.,MC1:Clothes,Buying Pants,20,0
+2016-02-06,Mr Smith,MC2:Rent,"Landlord, Wiring",600,0
+            """
+
+            self.args.schema = 'ynab'
+            self.args.accountname = 'Checking Account'
+
+            self.writecsv(content)
+
+            clothes = get_subcategory(self.client, 'MC1', 'Clothes', create=True)
+
+            rent = get_subcategory(self.client, 'MC2', 'Rent', create=True)
+            self.client.budget.be_subcategories.remove(clothes)
+            self.client.budget.be_subcategories.remove(rent)
+            self.client.budget.be_master_categories.remove(clothes.master_category)
+            self.client.budget.be_master_categories.remove(rent.master_category)
+
+            tr1 = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
+                             'Checking Account')
+
+            tr1.subcategory = clothes
+
+            tr2 = self.getTr(date(year=2016, month=2, day=6), 'Mr Smith', -600, 'Landlord, Wiring', 'Checking Account')
+
+            tr2.subcategory = rent
+
+            self.assertRaises(SystemExit, lambda:transaction_list(self.args, self.client))
+
+
     def test_import_categoryschema(self):
         content = """Date,Payee,Category,Memo,Outflow,Inflow
 2016-02-01,Super Pants Inc.,MC1:Clothes,Buying Pants,20,0
