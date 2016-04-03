@@ -3,9 +3,11 @@ from contextlib import contextmanager
 
 from sqlalchemy.orm import sessionmaker
 
+from pynYNAB.config import echo
 from pynYNAB.db import engine
 from pynYNAB.schema.budget import *
 from pynYNAB.schema.catalog import *
+
 
 Session = sessionmaker(bind=engine, expire_on_commit=False)
 

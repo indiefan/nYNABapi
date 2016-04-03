@@ -1,8 +1,8 @@
 from functools import wraps
 
 from pynYNAB.config import get_logger
-from pynYNAB.connection import NYnabConnectionError, nYnabConnection
-from pynYNAB.db.db import session_scope
+from pynYNAB.connection import nYnabConnection
+from pynYNAB.db.db import session_scope, CatalogBudget
 from pynYNAB.schema.budget import Payee, Transaction, Budget
 from pynYNAB.schema.catalog import BudgetVersion, Catalog
 from pynYNAB.utils import chunk
@@ -46,20 +46,13 @@ class nYnabClient(object):
             session.commit()
         self.sync()
 
-    def getinitialdata(self):
-        try:
-            getinitialdata = self.connection.dorequest({"device_info": {'id': self.connection.id}},
-                                                       'getInitialUserData')
-            self.budget.update_from_changed_entities(getinitialdata['budget'])
-            self.budget_version.update_from_dict(getinitialdata['budget_version'])
-            pass
-        except NYnabConnectionError:
-            pass
-
     def sync(self):
         get_logger().info('Syncing with the server....')
         # ending-starting represents the number of modifications that have been done to the data ?
         self.catalog.sync(self.connection)
+        with session_scope() as session:
+            result = session.query(CatalogBudget).filter(CatalogBudget.budget_name == self.budget_name).all()
+
         if self.budget.budget_version_id is None:
             for catalogbudget in self.catalog.ce_budgets:
                 if catalogbudget.budget_name == self.budget_name:
@@ -163,13 +156,15 @@ class nYnabClient(object):
                 self.catalog.ce_budgets.remove(budget)
 
     def select_budget(self, budget_name):
-        self.catalog.sync(self.connection, 'syncCatalogData')
+        self.catalog.sync(self.connection)
         for budget_version in self.catalog.ce_budget_versions:
-            budget = self.catalog.ce_budgets.get(budget_version.budget_id)
-            if budget.budget_name == budget_name:
-                self.budget.budget_version_id = budget_version.id
-                self.sync()
-                break
+            with session_scope() as session:
+                budget = session.query(BudgetVersion).get(budget_version.budget_id)
+                #budget = self.catalog.ce_budgets.get(budget_version.budget_id)
+                if budget.budget_name == budget_name:
+                    self.budget.budget_version_id = budget_version.id
+                    self.sync()
+                    break
 
     def create_budget(self, budget_name):
         import json

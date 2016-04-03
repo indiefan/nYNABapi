@@ -77,7 +77,7 @@ class BudgetEntity(Entity):
         return OriginalColumn(String(36), ForeignKey('budget.id'))
 
     @declared_attr
-    def budget(self):
+    def parent(self):
         return relationship("Budget")
 
 

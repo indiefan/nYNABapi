@@ -25,7 +25,7 @@ class CatalogEntity(Entity):
         return OriginalColumn(String(36), ForeignKey('catalog.id'))
 
     @declared_attr
-    def catalog(self):
+    def parent(self):
         return relationship("Catalog")
 
 

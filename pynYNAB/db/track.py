@@ -1,6 +1,6 @@
 from sqlalchemy import event
 
-from pynYNAB.config import get_logger
+from pynYNAB.config import get_logger, parser, echo
 
 
 class ModificationTracker(object):
@@ -21,25 +21,25 @@ class Tracker(object):
         self.changed = []
 
     def track_append(self, target, value, initiator):
-        self.logger.debug("track_append %s" % value)
+        if echo: print("track_append %s" % value)
         if not isinstance(value, self.otherclass):
             print('Tried to append a %s, expected a %s ' % (self.otherclass, value.__class__))
             raise ValueError()
         self.changed.append(value)
 
     def track_remove(self, target, value, initiator):
-        self.logger.debug("track_remove %s" % value)
+        if echo: print("track_remove %s" % value)
         valuecopy = value.copy()
         valuecopy.is_tombstone = True
         self.track_append(target, valuecopy, initiator)
 
     def track_set(self, target, value, oldvalue, initiator):
-        self.logger.debug("track_set %s %s => %s" % (initiator.key, oldvalue, value))
+        if echo: print("track_set %s %s => %s" % (initiator.key, oldvalue, value))
         if initiator.key != 'is_tombstone' and target.initialized:
             self.changed.append(target)
 
     def track_dispose(self, target, value, initiator):
-        self.logger.debug("track_dispose %s" % value)
+        if echo: print("track_dispose %s" % value)
         l = getattr(target, initiator.attr.key)
         l.track = self
 
@@ -47,10 +47,10 @@ class Tracker(object):
         event.listens_for(prop2, 'set')(self.track_set)
 
     def track_init(self, target, args, kwarg):
-        self.logger.debug('track_init %s' % target)
+        if echo: print('track_init %s' % target)
 
-    def track_load(self, target, args, kwarg):
-        self.logger.debug('track_load')
+    def track_load(self, t1, t2):
+        if echo: print('track_load')
 
     def add_init_tracker(self, otherclass):
         event.listens_for(otherclass, 'init')(self.track_init)

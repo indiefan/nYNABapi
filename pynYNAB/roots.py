@@ -10,7 +10,8 @@ def knowledge_change(changed_entities):
 
 
 class ListOfEntities(RelationshipProperty):
-    pass
+    def __init__(self,*args,**kwargs):
+        super(ListOfEntities,self).__init__(*args,cascade='all, delete-orphan',**kwargs)
 
 
 class Root(Entity):
@@ -74,23 +75,22 @@ class Root(Entity):
         self.device_knowledge_of_server = syncData['current_server_knowledge']
 
     def update_from_changed_entities(self, changed_entities):
-        for key, prop in self.listfields.items():
-            try:
-                current = {e.id: e for e in getattr(self, prop.key)}
-
-                changed = changed_entities[prop.key] if changed_entities[prop.key] else []
+        from pynYNAB.db.db import session_scope
+        with session_scope() as session:
+            for key, prop in self.listfields.items():
+                currentlist = getattr(self, prop.key)
+                otherclass = prop.mapper.class_
+                changed = changed_entities[prop.key] if prop.key in changed_entities and changed_entities[prop.key] else []
                 for el in changed:
-                    if el.id in current.keys():
-                        if el.is_tombstone:
-                            del current[el.id]
-                        else:
-                            current[el.id] = el
-                    else:
-                        if not el.is_tombstone:
-                            current[el.id] = el
-                setattr(self, prop.key, list(current.values()))
-            except KeyError:
-                pass
+                    result=session.query(otherclass).filter(otherclass.id == el.id).first()
+                    if result:
+                        session.delete(result)
+                        currentlist.remove(result)
+
+                    if not el.is_tombstone:
+                        el.parent = self
+                        session.add(el)
+                        currentlist.append(el)
 
     def get_changed_entities(self):
         changed = {}

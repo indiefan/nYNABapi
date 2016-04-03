@@ -113,8 +113,10 @@ class Tests(unittest.TestCase):
     def test_update_add(self):
         newobject = Account()
         CE = {'be_accounts': [newobject]}
+        with session_scope() as session:
+            budget = Budget()
+            session.add(budget)
 
-        budget = Budget()
         budget.update_from_changed_entities(CE)
         self.assertIn(newobject, budget.be_accounts)
 
@@ -124,8 +126,11 @@ class Tests(unittest.TestCase):
             budget = Budget()
             budget.be_accounts.append(obj)
             session.add(budget)
+            session.commit()
 
-            obj2 = Account.from_dict(obj.get_dict())
+            d=obj.get_dict()
+
+            obj2 = Account.from_dict(d)
             obj2.is_tombstone = True
             CE = {'be_accounts': [obj2]}
 

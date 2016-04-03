@@ -16,10 +16,14 @@ group.add_argument('--password', metavar='Password', type=str, required=False,
 group.add_argument('--level', metavar='LoggingLevel', type=str.lower, required=False, default='error',
                    choices=['critical', 'error', 'warn', 'warning', 'info', 'debug'],
                    help='Logging Level')
+group.add_argument('-echo', required=False, action='store_true',
+                   help='echoes all client db accesses and tracking (warning, very verbose)')
 
 group.add_argument('--budgetname', metavar='BudgetName', type=str, required=False,
                    help='The nYNAB budget to use')
 
+args = parser.parse_known_args()[0]
+echo = args.echo if args else False
 
 def get_logger(args=None):
     args = parser.parse_known_args()[0] if args is None else args

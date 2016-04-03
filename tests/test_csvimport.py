@@ -20,8 +20,8 @@ class TestCsv(unittest.TestCase):
     def getTr(self, date, payee_name, amount, memo, account_name):
         imported_date = datetime.now().date()
 
-        payee = get_payee(self.client,payee_name,create=True)
-        account = get_account(self.client,account_name,create=True)
+        payee = get_payee(self.client, payee_name, create=True)
+        account = get_account(self.client, account_name, create=True)
 
         return Transaction(
             entities_account_id=account.id,
@@ -50,7 +50,7 @@ class TestCsv(unittest.TestCase):
             if e.errno != errno.EEXIST:
                 raise
 
-        self.client=MockClient()
+        self.client = MockClient()
 
     def writecsv(self, content, encoding='utf-8'):
         with io.open(self.args.csvfile, mode='w', encoding=encoding) as f:
@@ -65,7 +65,7 @@ class TestCsv(unittest.TestCase):
 """
         self.writecsv(content)
 
-        transaction = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.' , -20, 'Buying pants',
+        transaction = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
                                  'Credit')
 
         self.client.budget.be_transactions.append(transaction)
@@ -103,26 +103,22 @@ class TestCsv(unittest.TestCase):
 
         self.writecsv(content)
 
-        clothes = get_subcategory(self.client,'MC1','Clothes',create=True)
-        rent = get_subcategory(self.client, 'MC2', 'Rent',create=True)
+        clothes = get_subcategory(self.client, 'MC1', 'Clothes', create=True)
+        rent = get_subcategory(self.client, 'MC2', 'Rent', create=True)
 
         tr1 = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
                          'Checking Account')
 
-        tr1.subcategory=clothes
+        tr1.subcategory = clothes
 
         tr2 = self.getTr(date(year=2016, month=2, day=6), 'Mr Smith', -600, 'Landlord, Wiring', 'Checking Account')
 
-        tr2.subcategory=rent
+        tr2.subcategory = rent
 
         tr_list = transaction_list(self.args, self.client)
 
-        for tr in tr1,tr2:
-            print(json.dumps(tr, cls=ComplexEncoder))
-            print(json.dumps(
-                [trl for trl in tr_list if trl.amount == tr.amount],
-                cls=ComplexEncoder))
-            self.assertIn(transaction_dedup(tr), map(transaction_dedup, tr_list))
+        for tr in tr1, tr2:
+            self.assertIn(transaction_dedup(tr), map(transaction_dedup,tr_list))
 
     def test_inexistent_account(self):
         content = """Date,Payee,Amount,Memo,Account
@@ -130,8 +126,8 @@ class TestCsv(unittest.TestCase):
 """
         self.writecsv(content)
 
-        self.client.budget.be_accounts.remove(get_account(self.client,'Cash',create=True))
-        self.assertRaises(SystemExit,lambda:transaction_list(self.args, self.client))
+        self.client.budget.be_accounts.remove(get_account(self.client, 'Cash', create=True))
+        self.assertRaises(SystemExit, lambda: transaction_list(self.args, self.client))
 
     def test_inexistent_payee(self):
         content = """Date,Payee,Amount,Memo,Account
@@ -172,14 +168,14 @@ class TestCsv(unittest.TestCase):
             self.assertIn(transaction_dedup(tr), map(transaction_dedup, tr_list))
 
     def test_encoded(self):
-        content = """Date,Payee,Amount,Memo,Account
+        content = u"""Date,Payee,Amount,Memo,Account
 2016-02-01,Grand Café,-3,Coffee,Cash
 """
         self.writecsv(content, encoding='iso-8859-1')
-        self.args.encoding='iso-8859-1'
+        self.args.encoding = 'iso-8859-1'
 
         Transactions = {
-            self.getTr(datetime(year=2016, month=2, day=1).date(), 'Grand Café', -3, 'Coffee',
+            self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Coffee',
                        'Cash'),
         }
 

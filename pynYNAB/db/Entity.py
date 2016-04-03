@@ -9,6 +9,7 @@ from pynYNAB import KeyGenerator
 from pynYNAB.config import get_logger
 from pynYNAB.db.Types import Amount, Converter, IgnorableString, IgnorableBoolean, Amounthybrid
 from pynYNAB.schema import enums
+import pprint
 
 
 class Column(OriginalColumn):
@@ -110,7 +111,7 @@ class EntityBase(object):
             return False
 
     def __repr__(self):
-        return self.get_dict().__repr__()
+        return pprint.pformat(self.get_dict())
 
     def __ne__(self, other):
         return not self.__eq__(other)
