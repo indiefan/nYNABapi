@@ -35,7 +35,7 @@ def get_subcategory(client, master_category_name, subcategory_name,create=False)
     try:
         return next(
             s for s in client.budget.be_subcategories
-            if s.master_category.name == master_category_name and s.name == subcategory_name)
+            if s.master_category and s.master_category.name == master_category_name and s.name == subcategory_name)
     except StopIteration:
         if create:
             m = MasterCategory(name=master_category_name)
