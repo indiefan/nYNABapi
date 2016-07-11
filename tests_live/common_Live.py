@@ -29,7 +29,7 @@ class CommonLive(unittest.TestCase):
 
     def util_add_account(self):
         account = Account(
-            account_type=random.choice(list(AccountTypes)),
+            account_type=random.choice(list(AccountTypes)).value,
             account_name=KeyGenerator.generateuuid()
         )
 
@@ -52,7 +52,7 @@ class CommonLive(unittest.TestCase):
             self.client.delete_account(account)
 
         account = Account(
-            account_type=AccountTypes.Checking,
+            account_type=AccountTypes.Checking.value,
             account_name=name
         )
 

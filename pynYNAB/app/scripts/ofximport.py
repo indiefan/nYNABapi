@@ -7,7 +7,7 @@ from ofxtools import OFXTree
 from pynYNAB.Client import clientfromargs
 from pynYNAB.config import test_common_args
 from pynYNAB.schema.budget import Transaction
-from pynYNAB.scripts.common import get_payee
+from pynYNAB.scripts.common import get_payee, select_account_ui
 
 
 def ofximport_main():
@@ -49,7 +49,7 @@ def transaction_list(args, client=None):
                 exit(-1)
 
             # ask user input for which bank account this is, then save it into the account note in nYNAB
-            account = client.select_account_ui()
+            account = select_account_ui(client.budget.be_accounts)
 
             # Save the selection in the nYNAB account note
             addon = 'key[' + key + ']key'

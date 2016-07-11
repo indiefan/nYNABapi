@@ -1,7 +1,8 @@
-from pynYNAB.config import get_logger
+import logging
+
 from pynYNAB.schema.budget import Payee, SubCategory, MasterCategory, Account
 
-logger = get_logger()
+logger = logging.getLogger('pynYnab.app')
 
 
 def get_account(client, account_name, create=False):
@@ -33,6 +34,12 @@ def get_payee(client, payee_name, create=False):
 
 def get_subcategory(client, master_category_name, subcategory_name,create=False):
     try:
+        logger.debug('Looking for master:subcategory %s:%s'%(master_category_name,subcategory_name))
+        logger.debug('subcategories: %s'%client.budget.be_subcategories)
+        logger.debug('corresponding master categories:')
+        for s in client.budget.be_subcategories:
+            logger.debug('%s: %s'%(s.id,s.master_category.name if s.master_category else 'No corresponding master category'))
+        logger.debug('subcategories'' master: %s' % client.budget.be_subcategories)
         return next(
             s for s in client.budget.be_subcategories
             if s.master_category and s.master_category.name == master_category_name and s.name == subcategory_name)
@@ -51,3 +58,27 @@ def get_subcategory(client, master_category_name, subcategory_name,create=False)
 
 def transaction_dedup(tr):
     return tr.amount, tr.date, tr.entities_account_id, tr.entities_payee_id
+
+
+def select_account_ui(accounts, create=False):
+    iaccount = 0
+    if create:
+        print('#0 ###CREATE')
+        iaccount = 1
+
+    for account in accounts:
+        print('#%d %s' % (iaccount, account.account_name))
+        iaccount += 1
+    if create:
+        accounts = [None] + accounts
+
+    while True:
+        accountnumber = input('Which account? ')
+        try:
+            accountnumber = int(accountnumber)
+            if 0 <= accountnumber <= len(accounts) - 1:
+                break
+        except ValueError:
+            pass
+        print('Please enter a number between %d and %d' % (0, len(accounts) - 1))
+        return accounts[accountnumber]

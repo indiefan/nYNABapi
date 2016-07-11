@@ -35,9 +35,8 @@ def chunk(iterable, chunk_size):
                 yield newchunk
             break
 
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
 
-# http://stackoverflow.com/q/10480806/1685379
-def equal_dicts(a, b, ignore_keys):
-    ka = set(a).difference(ignore_keys)
-    kb = set(b).difference(ignore_keys)
-    return ka == kb and all(a[k] == b[k] for k in ka)

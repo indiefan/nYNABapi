@@ -14,7 +14,8 @@ from pynYNAB.db.Entity import Entity, Column, EntityBase
 from pynYNAB.db.Types import Amount, IgnorableString, IgnorableBoolean, Amounthybrid
 from pynYNAB.db.Types import Dates
 from pynYNAB.roots import Root, ListOfEntities
-from pynYNAB.schema.enums import AccountTypes, Sources
+from pynYNAB.schema.catalog import BudgetVersion
+from pynYNAB.schema.enums import AccountTypes, Sources, MyEnumType
 
 
 class Budget(Root, Base):
@@ -42,7 +43,10 @@ class Budget(Root, Base):
     first_month = Column(Date())
 
     budget_version_id = Column(String(36),ForeignKey('budgetversion.id'))
-    budget_version = relationship('BudgetVersion')
+    budget_version = relationship(BudgetVersion)
+
+    track_id = Column(String, ForeignKey('budget.id'))
+    track = relationship('Budget',uselist=False)
 
     def get_request_data(self):
         k, request_data = super(Budget, self).get_request_data()
@@ -120,7 +124,8 @@ class Transaction(BudgetEntity, Base):
     imported_payee = Column(String())
     matched_transaction_id = Column(String(36), ForeignKey('transaction.id'))
     memo = Column(String())
-    source = Column(Enum(*Sources.__members__.keys(), name='Sources'))
+
+    source = Column(MyEnumType(Sources))
     transfer_account_id = Column(String(36), ForeignKey('account.id'))
     transfer_subtransaction_id = Column(String(36), ForeignKey('subtransaction.id'))
     transfer_transaction_id = Column(String(36), ForeignKey('transaction.id'))
@@ -358,7 +363,7 @@ on_budget_dict[None] = None
 
 class Account(BudgetEntity, Base):
     account_name = Column(String())
-    account_type = Column(Enum(*AccountTypes.__members__.keys(), name='AccountTypes'))
+    account_type = Column(MyEnumType(AccountTypes))
     direct_connect_account_id = Column(IgnorableString())
     direct_connect_enabled = Column(IgnorableBoolean(), default=False)
     direct_connect_institution_id = Column(IgnorableString())

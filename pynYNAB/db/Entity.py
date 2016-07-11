@@ -11,6 +11,8 @@ from pynYNAB.db.Types import Amount, Converter, IgnorableString, IgnorableBoolea
 from pynYNAB.schema import enums
 import pprint
 
+from pynYNAB.schema.enums import MyEnumType
+
 
 class Column(OriginalColumn):
     pass
@@ -47,7 +49,7 @@ class EntityBase(object):
                                 val = Converter.date_in(val)
                             elif colcls == Amount:
                                 val = Converter.amount_in(val)
-                            elif colcls == Enum:
+                            elif colcls == MyEnumType:
                                 val = val.value
                         elif colcls == IgnorableString or colcls == IgnorableBoolean:
                             continue
@@ -58,16 +60,19 @@ class EntityBase(object):
         return result
 
     @classmethod
-    def from_dict(cls, dictionary):
+    def from_dict(cls, dictionary, convert = False):
+        mapper_class = cls.__mapper__
+        if convert:
+            dictionary = cls.convert_out(dictionary)
         objdict = {}
         logger = get_logger()
         logger.debug('Filtering dict to create %s from dict %s' % (cls, dictionary))
-        filtered = {k: v for k, v in dictionary.items() if k in cls.__mapper__.column_attrs}
+        filtered = {k: v for k, v in dictionary.items() if k in mapper_class.column_attrs}
         for key, value in filtered.items():
             try:
                 field = class_mapper(cls).get_property(key)
             except InvalidRequestError:
-                if key in cls.__mapper__.all_orm_descriptors:
+                if key in mapper_class.all_orm_descriptors:
                     logger.info('ignored a key in an incoming dictionary, most likely a calculated field')
                     pass
                 else:
@@ -95,8 +100,9 @@ class EntityBase(object):
                         val = Converter.date_out(val)
                     elif colcls == Amount:
                         val = Converter.amount_out(val)
-                    elif colcls == Enum:
-                        val = getattr(getattr(enums, col.type.name), val)
+                    elif colcls == MyEnumType:
+                        # store the enum as the string value
+                        pass
                 result[col.key] = val
         return result
 

@@ -1,11 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 
-from pynYNAB.config import echo
+from pynYNAB.config import echodb
 
 BaseModel = declarative_base()
 
-engine = create_engine('sqlite:///:memory:',echo=echo)
+engine = create_engine('sqlite:///:memory:',echo=echodb)
 
 
 class Base(BaseModel):

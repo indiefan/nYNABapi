@@ -2,18 +2,24 @@ import json
 import unittest
 from datetime import datetime
 
+import sys
 from sqlalchemy import Date
 
 from pynYNAB.connection import ComplexEncoder
-from pynYNAB.db import Base
+from pynYNAB.db import Base, engine, BaseModel
 from pynYNAB.db.Entity import Column
 from pynYNAB.db.Types import Amount
-from pynYNAB.db.db import session_scope
+from pynYNAB.db.db import session_scope, String, MyEnumType
 from pynYNAB.schema.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, SubCategory, \
     MonthlyAccountCalculation, MonthlyBudget, MonthlySubCategoryBudget, MonthlyBudgetCalculation, \
     MonthlySubCategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
     ScheduledTransaction, Setting, Subtransaction, Budget, BudgetEntity
 from pynYNAB.schema.catalog import BudgetVersion, User, UserBudget, UserSetting
+from pynYNAB.db.track import reset_track
+from sqlalchemy.sql.sqltypes import Enum, Integer
+from sqlalchemy import create_engine
+from enum import Enum as eEnum
+from pynYNAB.db.db import Session
 
 types = [
     Account,
@@ -40,9 +46,33 @@ types = [
     UserSetting
 ]
 
+def setup_module():
+    global transaction, connection, engine
+
+    # Connect to the database and create the schema within a transaction
+    engine = create_engine('sqlite:///:memory:')
+    connection = engine.connect()
+    transaction = connection.begin()
+    Base.metadata.create_all(connection)
+
+    # If you want to insert fixtures to the DB, do it here
+
+
+def teardown_module():
+    # Roll back the top level transaction and disconnect from the database
+    transaction.rollback()
+    connection.close()
+    engine.dispose()
+
 
 class Tests(unittest.TestCase):
     maxDiff = None
+
+    def collectionsEqualIgnoreOrder(self, expected_seq, actual_seq, msg=None):
+        if sys.version_info[0] == '2':
+            return self.assertItemsEqual(expected_seq,actual_seq,msg)
+        if sys.version_info[0] == '3':
+            return self.assertCountEqual(expected_seq, actual_seq, msg)
 
     def testEntityjson(self):
         for t in types:
@@ -88,7 +118,6 @@ class Tests(unittest.TestCase):
 
     def testupdatechangedentities(self):
         obj = Budget()
-        assert (obj.be_accounts.track.otherclass == Account)
         assert (len(obj.be_accounts) == 0)
         account = Account()
         changed_entities = dict(
@@ -113,35 +142,30 @@ class Tests(unittest.TestCase):
     def test_update_add(self):
         newobject = Account()
         CE = {'be_accounts': [newobject]}
-        with session_scope() as session:
-            budget = Budget()
-            session.add(budget)
+        budget = Budget()
 
         budget.update_from_changed_entities(CE)
         self.assertIn(newobject, budget.be_accounts)
 
     def test_update_delete(self):
-        with session_scope() as session:
-            obj = Account()
-            budget = Budget()
-            budget.be_accounts.append(obj)
-            session.add(budget)
-            session.commit()
+        obj = Account()
+        budget = Budget()
+        budget.be_accounts.append(obj)
 
-            d=obj.get_dict()
+        d=obj.get_dict()
 
-            obj2 = Account.from_dict(d)
-            obj2.is_tombstone = True
-            CE = {'be_accounts': [obj2]}
+        obj2 = Account.from_dict(d)
+        obj2.is_tombstone = True
+        CE = {'be_accounts': [obj2]}
 
-            budget.update_from_changed_entities(CE)
-            self.assertNotIn(obj, budget.be_accounts)
+        budget.update_from_changed_entities(CE)
+        self.assertNotIn(obj, budget.be_accounts)
 
     def test_update_modify(self):
         obj = Account()
         budget = Budget()
         budget.be_accounts.append(obj)
-        budget.be_accounts.track.reset()
+        reset_track(budget)
         self.assertIn(obj, budget.be_accounts)
 
         obj.account_name = 'BLA'
@@ -151,43 +175,54 @@ class Tests(unittest.TestCase):
 
     def testCE_nochange(self):
         obj = Budget()
-        self.assertEqual(obj.get_changed_entities(), {})
+        changed=obj.get_changed_entities()
+        self.assertEqual(changed, {})
 
     def testCE_simpleadd(self):
         obj = Budget()
         account = Account()
         obj.be_accounts.append(account)
-        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account]})
+        changed = obj.get_changed_entities()
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder(changed['be_accounts'], [account])
 
     def testCE_replace(self):
         obj = Budget()
-        account = Account()
+        account = Account(account_name='account')
         obj.be_accounts.append(account)
-        account2 = Account()
-        obj.be_accounts.track.reset()
+        reset_track(obj)
+        account2 = Account(account_name='account2')
+        print('RESET TRACK')
+        print('obj id %s'%obj.id)
         obj.be_accounts = [account2]
 
         changed = obj.get_changed_entities()
-        account.is_tombstone = True
-        self.assertEqual(list(changed.keys()), ['be_accounts'])
-        self.assertEqual(set(changed['be_accounts']), {account, account2})
+        #caccount=account.copy()
+        #caccount.is_tombstone = True
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder(changed['be_accounts'], [account, account2])
 
     def testCE_simpledelete(self):
         obj = Budget()
         account = Account()
         obj.be_accounts.append(account)
-        obj.be_accounts.track.reset()
+        reset_track(obj)
         obj.be_accounts.remove(account)
         account.is_tombstone = True
-        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account]})
+
+        changed = obj.get_changed_entities()
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder([account], changed['be_accounts'])
 
     def testCE_simplechange(self):
         obj = Budget()
         account1 = Account()
         obj.be_accounts.append(account1)
-        obj.be_accounts.track.reset()
+        reset_track(obj)
         account1.account_name = 'TEST'
-        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account1]})
+        changed=obj.get_changed_entities()
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder(changed['be_accounts'], [account1])
 
     def test_str(self):
         # tests no exceptions when getting the string representation of some entities

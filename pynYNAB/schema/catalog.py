@@ -1,7 +1,7 @@
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import ForeignKey
-from sqlalchemy.types import String
+from sqlalchemy.types import String,Integer
 from sqlalchemy import Column as OriginalColumn
 
 from pynYNAB.db import Base
@@ -18,6 +18,8 @@ class Catalog(Root, Base):
     ce_users = ListOfEntities('User')
     ce_budgets = ListOfEntities('CatalogBudget')
 
+    track_id = Column(String, ForeignKey('catalog.id'))
+    track = relationship('Catalog')
 
 class CatalogEntity(Entity):
     @declared_attr
@@ -44,12 +46,17 @@ class UserSetting(CatalogEntity, Base):
     user_id = Column(String(36), ForeignKey('user.id'))
     setting_value = Column(String())
 
+class FeatureFlags(Base):
+    __tablename__='featureflags'
+    featureflags_id = Column(Integer(),primary_key=True)
+    user_id = Column(String,ForeignKey('user.id'))
+    name = Column(String())
 
 class User(CatalogEntity, Base):
     username = Column(String())
     trial_expires_on = Column(String())
     email = Column(String())
-    feature_flags = Column(String())
+    feature_flags = relationship('FeatureFlags')
     is_subscribed = Column(Boolean())
 
 

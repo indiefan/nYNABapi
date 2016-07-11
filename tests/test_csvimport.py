@@ -8,13 +8,33 @@ import unittest
 from datetime import datetime, date
 
 import configargparse
+from sqlalchemy import create_engine
 
 from pynYNAB.connection import ComplexEncoder
+from pynYNAB.db import Base
 from pynYNAB.schema.budget import Transaction
 from pynYNAB.scripts.common import get_payee, get_account, get_subcategory
 from pynYNAB.scripts.csvimport import transaction_list, transaction_dedup
 from tests.mock import MockClient
 
+
+def setup_module():
+    global transaction, connection, engine
+
+    # Connect to the database and create the schema within a transaction
+    engine = create_engine('sqlite:///:memory:')
+    connection = engine.connect()
+    transaction = connection.begin()
+    Base.metadata.create_all(connection)
+
+    # If you want to insert fixtures to the DB, do it here
+
+
+def teardown_module():
+    # Roll back the top level transaction and disconnect from the database
+    transaction.rollback()
+    connection.close()
+    engine.dispose()
 
 class TestCsv(unittest.TestCase):
     def getTr(self, date, payee_name, amount, memo, account_name):

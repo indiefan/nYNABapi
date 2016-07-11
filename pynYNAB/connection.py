@@ -1,11 +1,11 @@
 # coding=utf-8
 import json
+import logging
 import uuid
 from time import sleep
 import requests
 from requests.cookies import RequestsCookieJar
 
-from pynYNAB.config import get_logger
 from pynYNAB.db.Entity import EntityBase
 from pynYNAB.utils import ratelimited
 
@@ -13,8 +13,9 @@ from pynYNAB.utils import ratelimited
 class NYnabConnectionError(Exception):
     pass
 
-
 requests.packages.urllib3.disable_warnings()
+
+logger = logging.getLogger('pynYnab')
 
 
 class ComplexEncoder(json.JSONEncoder):
@@ -47,7 +48,6 @@ class nYnabConnection(object):
         self.sessionToken = None
         self.id = str(uuid.uuid3(uuid.NAMESPACE_DNS, 'rienafairefr.pynYNAB'))
         self.lastrequest_elapsed = None
-        self.logger = get_logger()
         self._init_session()
 
     @ratelimited(maxpersecond=5)
@@ -63,27 +63,27 @@ class nYnabConnection(object):
         # Available operations :
 
         params = {'operation_name': opname, 'request_data': json.dumps(request_dic, cls=ComplexEncoder), }
-        self.logger.debug('POST-ing ... %s ' % params)
+        logger.debug('POST-ing ... %s ' % params)
         r = self.session.post(self.urlCatalog, params, verify=False)
         self.lastrequest_elapsed = r.elapsed
         js = r.json()
         if r.status_code != 200:
-            self.logger.debug('non-200 HTTP code: %s ' % r.text)
+            logger.debug('non-200 HTTP code: %s ' % r.text)
         if js['error'] is None:
-            self.logger.debug('JSON returned from the API: %s' % js)
+            logger.debug('JSON returned from the API: %s' % js)
             return js
         else:
             error = js['error']
             if r.status_code == 500:
                 raise NYnabConnectionError('Uunrecoverable server error, sorry YNAB')
             if error['id'] == 'user_not_found':
-                self.logger.error('API error, User Not Found')
+                logger.error('API error, User Not Found')
             elif error['id'] == 'id=user_password_invalid':
-                self.logger.error('API error, User-Password combination invalid')
+                logger.error('API error, User-Password combination invalid')
             elif error['id'] == 'request_throttled':
-                self.logger.debug('API Rrequest throttled')
+                logger.debug('API Rrequest throttled')
                 retyrafter = r.headers['Retry-After']
-                self.logger.debug('Waiting for %s s' % retyrafter)
+                logger.debug('Waiting for %s s' % retyrafter)
                 sleep(float(retyrafter))
                 return self.dorequest(request_dic, opname)
             else:

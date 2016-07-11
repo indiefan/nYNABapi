@@ -1,26 +1,13 @@
+import logging
 from functools import wraps
 
-from pynYNAB.config import get_logger
 from pynYNAB.connection import nYnabConnection
-from pynYNAB.db.db import session_scope, CatalogBudget
-from pynYNAB.schema.budget import Payee, Transaction, Budget
+from pynYNAB.db.db import Session, CatalogBudget
+from pynYNAB.schema.budget import Payee, Transaction, Budget, SubCategory
 from pynYNAB.schema.catalog import BudgetVersion, Catalog
 from pynYNAB.utils import chunk
 
-
-def clientfromargs(args, reset=False):
-    connection = nYnabConnection(args.email, args.password)
-    try:
-        client = nYnabClient(connection, budget_name=args.budgetname)
-        if reset:
-            # deletes the budget
-            client.delete_budget(args.budgetname)
-            client.create_budget(args.budgetname)
-            client.select_budget(args.budgetname)
-        return client
-    except BudgetNotFound:
-        print('No budget by this name found in nYNAB')
-        exit(-1)
+logger = logging.getLogger('pynYnab')
 
 
 class BudgetNotFound(Exception):
@@ -30,37 +17,32 @@ class BudgetNotFound(Exception):
 class nYnabClient(object):
     def __init__(self, nynabconnection, budget_name):
         if budget_name is None:
-            get_logger().error('No budget name was provided')
+            logger.error('No budget name was provided')
             exit(-1)
         self.budget_name = budget_name
         self.connection = nynabconnection
-        self.budget_name = budget_name
-        with session_scope() as session:
-            self.catalog = Catalog()
-            self.budget = Budget()
-            self.budget_version = BudgetVersion()
 
-            session.add(self.catalog)
-            session.add(self.budget)
-            session.add(self.budget_version)
-            session.commit()
+        self.catalog = Catalog()
+        self.catalog.sync(self.connection)
+
+        catalogbudget = Session.query(CatalogBudget).filter(CatalogBudget.budget_name == self.budget_name).first()
+        if not catalogbudget:
+            raise BudgetNotFound()
+        self.budget_version = Session.query(BudgetVersion).filter(BudgetVersion.budget_id == catalogbudget.id).first()
+
+        self.budget = Budget()
+        self.budget.budget_version_id = self.budget_version.id
+
+        Session.add(self.budget)
+        Session.add(self.budget_version)
         self.sync()
 
     def sync(self):
-        get_logger().info('Syncing with the server....')
+        logger.info('Syncing with the server....')
         # ending-starting represents the number of modifications that have been done to the data ?
         self.catalog.sync(self.connection)
-        with session_scope() as session:
-            result = session.query(CatalogBudget).filter(CatalogBudget.budget_name == self.budget_name).all()
 
-        if self.budget.budget_version_id is None:
-            for catalogbudget in self.catalog.ce_budgets:
-                if catalogbudget.budget_name == self.budget_name:
-                    for budget_version in self.catalog.ce_budget_versions:
-                        if budget_version.budget_id == catalogbudget.id:
-                            self.budget.budget_version_id = budget_version.id
-                            break
-        if self.budget.budget_version_id is None and self.budget_name is not None:
+        if self.budget_version is None and self.budget_name is not None:
             raise BudgetNotFound()
         else:
             self.budget.sync(self.connection)
@@ -124,31 +106,6 @@ class nYnabClient(object):
     def delete_transaction(self, transaction):
         self.budget.be_transactions.remove(transaction)
 
-    def select_account_ui(self, create=False):
-        accounts = list(self.budget.be_accounts)
-
-        iaccount = 0
-        if create:
-            print('#0 ###CREATE')
-            iaccount = 1
-
-        for account in accounts:
-            print('#%d %s' % (iaccount, account.account_name))
-            iaccount += 1
-        if create:
-            accounts = [None] + accounts
-
-        while True:
-            accountnumber = input('Which account? ')
-            try:
-                accountnumber = int(accountnumber)
-                if 0 <= accountnumber <= len(accounts) - 1:
-                    break
-            except ValueError:
-                pass
-            print('Please enter a number between %d and %d' % (0, len(accounts) - 1))
-            return accounts[accountnumber]
-
     @operation
     def delete_budget(self, budget_name):
         for budget in self.catalog.ce_budgets:
@@ -158,13 +115,12 @@ class nYnabClient(object):
     def select_budget(self, budget_name):
         self.catalog.sync(self.connection)
         for budget_version in self.catalog.ce_budget_versions:
-            with session_scope() as session:
-                budget = session.query(BudgetVersion).get(budget_version.budget_id)
-                #budget = self.catalog.ce_budgets.get(budget_version.budget_id)
-                if budget.budget_name == budget_name:
-                    self.budget.budget_version_id = budget_version.id
-                    self.sync()
-                    break
+            budget = Session.query(BudgetVersion).get(budget_version.budget_id)
+            #budget = self.catalog.ce_budgets.get(budget_version.budget_id)
+            if budget.budget_name == budget_name:
+                self.budget.budget_version_id = budget_version.id
+                self.sync()
+                break
 
     def create_budget(self, budget_name):
         import json

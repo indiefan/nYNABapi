@@ -1,15 +1,16 @@
 
 from contextlib import contextmanager
 
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import event
+from sqlalchemy.orm import sessionmaker, mapper,scoped_session
 
-from pynYNAB.config import echo
 from pynYNAB.db import engine
 from pynYNAB.schema.budget import *
 from pynYNAB.schema.catalog import *
 
 
-Session = sessionmaker(bind=engine, expire_on_commit=False)
+session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+Session=scoped_session(session_factory)
 
 
 @contextmanager
@@ -23,6 +24,19 @@ def session_scope():
         session.rollback()
         raise
     finally:
-        session.close()
+        pass
+        #session.close()
 
 Base.metadata.create_all(engine)
+
+@event.listens_for(mapper, 'init')
+def auto_add(target, args, kwargs):
+    session=Session()
+    session.add(target)
+    try:
+        session.commit()
+    except:
+        session.rollback()
+
+
+
