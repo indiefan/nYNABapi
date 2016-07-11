@@ -1,170 +1,123 @@
 import json
 import unittest
+from datetime import datetime
 
-from pynYNAB.Entity import Entity, ComplexEncoder, ListofEntities, undef, AccountTypes, addprop
-from pynYNAB.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, Subcategory, \
-    MonthlyAccountCalculation, MonthlyBudget, MonthlySubcategoryBudget, MonthlyBudgetCalculation, \
-    MonthlySubcategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
-    ScheduledTransaction, Setting, Subtransaction, TransactionGroup
-from pynYNAB.catalog import BudgetVersion, CatalogBudget, User, UserBudget, UserSetting
-from pynYNAB.roots import Budget, Catalog
-from pynYNAB.schema.Fields import EntityField, EntityListField, DateField, PropertyField
+import sys
+from sqlalchemy import Date
+
+from pynYNAB.connection import ComplexEncoder
+from pynYNAB.db import Base, engine, BaseModel
+from pynYNAB.db.Entity import Column
+from pynYNAB.db.Types import Amount
+from pynYNAB.db.db import session_scope, String, MyEnumType
+from pynYNAB.schema.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, SubCategory, \
+    MonthlyAccountCalculation, MonthlyBudget, MonthlySubCategoryBudget, MonthlyBudgetCalculation, \
+    MonthlySubCategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
+    ScheduledTransaction, Setting, Subtransaction, Budget, BudgetEntity
+from pynYNAB.schema.catalog import BudgetVersion, User, UserBudget, UserSetting
+from pynYNAB.db.track import reset_track
+from sqlalchemy.sql.sqltypes import Enum, Integer
+from sqlalchemy import create_engine
+from enum import Enum as eEnum
+from pynYNAB.db.db import Session
+
+types = [
+    Account,
+    AccountCalculation,
+    AccountMapping,
+    MasterCategory,
+    MonthlyAccountCalculation,
+    MonthlyBudget,
+    MonthlyBudgetCalculation,
+    MonthlySubCategoryBudget,
+    MonthlySubCategoryBudgetCalculation,
+    Payee,
+    PayeeLocation,
+    PayeeRenameCondition,
+    ScheduledSubtransaction,
+    ScheduledTransaction,
+    Setting,
+    SubCategory,
+    Subtransaction,
+    Transaction,
+    BudgetVersion,
+    User,
+    UserBudget,
+    UserSetting
+]
+
+def setup_module():
+    global transaction, connection, engine
+
+    # Connect to the database and create the schema within a transaction
+    engine = create_engine('sqlite:///:memory:')
+    connection = engine.connect()
+    transaction = connection.begin()
+    Base.metadata.create_all(connection)
+
+    # If you want to insert fixtures to the DB, do it here
 
 
-class Test1(unittest.TestCase):
+def teardown_module():
+    # Roll back the top level transaction and disconnect from the database
+    transaction.rollback()
+    connection.close()
+    engine.dispose()
+
+
+class Tests(unittest.TestCase):
     maxDiff = None
 
-    def testEntityjson(self):
-        class MyEntity(Entity):
-            Fields = {'greatfield': EntityField(2)}
+    def collectionsEqualIgnoreOrder(self, expected_seq, actual_seq, msg=None):
+        if sys.version_info[0] == '2':
+            return self.assertItemsEqual(expected_seq,actual_seq,msg)
+        if sys.version_info[0] == '3':
+            return self.assertCountEqual(expected_seq, actual_seq, msg)
 
-        obj = MyEntity()
-        jsonroundtrip = json.loads(json.dumps(obj, cls=ComplexEncoder))
-        assert (jsonroundtrip == {'id': obj.id, 'greatfield': 2})
+    def testEntityjson(self):
+        for t in types:
+            obj = t()
+            jsonroundtrip = json.loads(json.dumps(obj, cls=ComplexEncoder))
+            self.assertEqual(jsonroundtrip, obj.get_dict(convert = True))
+            obj2 = t.from_dict(jsonroundtrip)
+
+            self.assertEqual(obj, obj2)
+
+    def testconvertout(self):
+        class MyEntity(BudgetEntity,Base):
+            amount=Column(Amount())
+            date = Column(Date())
+
+        obj=MyEntity()
+
+        result={}
+        result['amount'] = 10000
+        result['date'] = '2016-10-23'
+
+        result=MyEntity(**MyEntity.convert_out(result))
+
+        self.assertEqual(result.amount,10)
+        self.assertEqual(result.date,datetime(2016,10,23).date())
+
+        pass
+
 
     def testequality(self):
-        tr1 = Transaction()
-        tr2 = Transaction()
+        tr1 = Transaction(amount=1)
+        tr2 = Transaction(amount=2)
         self.assertNotEqual(tr1, tr2)
 
         tr1 = Transaction(entities_account_id=1)
         tr2 = Transaction(entities_account_id=2)
         self.assertNotEqual(tr1, tr2)
 
-    def testentityIn(self):
-        tr1 = Transaction()
-        transactions = ListofEntities(Transaction)
-        transactions.append(tr1)
-        self.assertIn(tr1, transactions)
-
-    def testentityIn2(self):
-        tr1 = Transaction()
-        tr2 = Transaction()
-        transactions = ListofEntities(Transaction)
-        transactions.append(tr1)
-        self.assertNotIn(tr2, transactions)
-
     def test_hash(self):
         tr1 = Transaction()
-        result = tr1.hash()
-        self.assertIsInstance(result, int)
-
-
-    def testprop(self):
-
-        namefield='p'
-        default= lambda self:self.y
-        def pgetter(self):
-            if hasattr(self,'__prop_'+namefield):
-                print('special')
-                return getattr(self,'__prop_'+namefield)
-            else:
-                return default(self)
-
-        def psetter(self,value):
-            setattr(self,'__prop_'+namefield,value)
-
-        class myClass(object):
-            y = 1
-
-        obj1=myClass()
-        addprop(obj1,namefield,pgetter,psetter)
-
-        self.assertEqual(obj1.p,1)
-        obj1.y=3
-        self.assertEqual(obj1.p,3)
-        obj1.p=5
-        self.assertEqual(obj1.p,5)
-        obj1.y=7
-        self.assertNotEqual(obj1.p,7)
-
-    def test_lambdaprop(self):
-        class MockEntity(Entity):
-            Fields=dict(
-                input=EntityField(True),
-                override=PropertyField(lambda x: x.input)
-            )
-        # override behaves like a @property attribute:
-
-        entity1=MockEntity()
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=False
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=12
-        self.assertEqual(entity1.override,entity1.input)
-
-        # unless set directly:
-
-        entity1.override=42
-        self.assertEqual(entity1.override,42)
-        # then it behaves like a normal attribute:
-        entity1.input=False
-        self.assertEqual(entity1.override,42)
-
-        # we can clear and come back to @property behavior
-        entity1.clean_override()
-
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=False
-        self.assertEqual(entity1.override,entity1.input)
-        entity1.input=12
-        self.assertEqual(entity1.override,entity1.input)
-
-    def testimports(self):
-        types = [
-            Account,
-            AccountCalculation,
-            AccountMapping,
-            Budget,
-            MasterCategory,
-            MonthlyAccountCalculation,
-            MonthlyBudget,
-            MonthlyBudgetCalculation,
-            MonthlySubcategoryBudget,
-            MonthlySubcategoryBudgetCalculation,
-            Payee,
-            PayeeLocation,
-            PayeeRenameCondition,
-            ScheduledSubtransaction,
-            ScheduledTransaction,
-            Setting,
-            Subcategory,
-            Subtransaction,
-            Transaction,
-            TransactionGroup,
-            BudgetVersion,
-            Catalog,
-            CatalogBudget,
-            User,
-            UserBudget,
-            UserSetting
-        ]
-
-        def checkequal(l1, l2):
-            return len(l1) == len(l2) and sorted(l1) == sorted(l2)
-
-        for typ in types:
-            obj = typ()
-            self.assertIsInstance(obj.AllFields, dict)
-            for f in obj.AllFields:
-                self.assertTrue(isinstance(obj.AllFields[f], EntityField) or isinstance(obj.AllFields[f], EntityListField))
-            self.assertTrue(checkequal(obj.getdict().keys(), obj.AllFields.keys()))
-
-            valuesleft=list(obj.getdict().values())
-            valuesright=[getattr(obj, f) for f in obj.AllFields.keys()]
-
-            unhashableleft = [v for v in valuesleft if v.__hash__ is None]
-            hashableleft = [v for v in valuesleft if v.__hash__ is not None]
-
-            unhashableright = [v for v in valuesright if v.__hash__ is None]
-            hashableright = [v for v in valuesright if v.__hash__ is not None]
-            self.assertEqual(set(hashableleft),set(hashableright))
-            self.assertEqual(unhashableleft,unhashableright)
+        tr2 = Transaction()
+        self.assertEqual(hash(tr1), hash(tr2))
 
     def testupdatechangedentities(self):
         obj = Budget()
-        assert (obj.be_accounts.__class__ == ListofEntities)
-        assert (obj.be_accounts.typeItems == Account)
         assert (len(obj.be_accounts) == 0)
         account = Account()
         changed_entities = dict(
@@ -175,9 +128,8 @@ class Test1(unittest.TestCase):
         assert (next(obj.be_accounts.__iter__()) == account)
 
     def testappend(self):
-
         obj = Budget()
-        account = Account(None)
+        account = Account()
         obj.be_accounts.append(account)
         assert (len(obj.be_accounts) == 1)
         assert (list(obj.be_accounts)[-1] == account)
@@ -187,44 +139,98 @@ class Test1(unittest.TestCase):
         transaction = Transaction()
         self.assertRaises(ValueError, lambda: obj.be_accounts.append(transaction))
 
+    def test_update_add(self):
+        newobject = Account()
+        CE = {'be_accounts': [newobject]}
+        budget = Budget()
+
+        budget.update_from_changed_entities(CE)
+        self.assertIn(newobject, budget.be_accounts)
+
+    def test_update_delete(self):
+        obj = Account()
+        budget = Budget()
+        budget.be_accounts.append(obj)
+
+        d=obj.get_dict()
+
+        obj2 = Account.from_dict(d)
+        obj2.is_tombstone = True
+        CE = {'be_accounts': [obj2]}
+
+        budget.update_from_changed_entities(CE)
+        self.assertNotIn(obj, budget.be_accounts)
+
+    def test_update_modify(self):
+        obj = Account()
+        budget = Budget()
+        budget.be_accounts.append(obj)
+        reset_track(budget)
+        self.assertIn(obj, budget.be_accounts)
+
+        obj.account_name = 'BLA'
+        CE = {'be_accounts': [obj]}
+        budget.update_from_changed_entities(CE)
+        self.assertIn(obj, budget.be_accounts)
+
     def testCE_nochange(self):
-        obj = Transaction(None)
-        self.assertEqual(obj.get_changed_entities(), {})
+        obj = Budget()
+        changed=obj.get_changed_entities()
+        self.assertEqual(changed, {})
 
     def testCE_simpleadd(self):
         obj = Budget()
         account = Account()
         obj.be_accounts.append(account)
-        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account]})
+        changed = obj.get_changed_entities()
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder(changed['be_accounts'], [account])
+
+    def testCE_replace(self):
+        obj = Budget()
+        account = Account(account_name='account')
+        obj.be_accounts.append(account)
+        reset_track(obj)
+        account2 = Account(account_name='account2')
+        print('RESET TRACK')
+        print('obj id %s'%obj.id)
+        obj.be_accounts = [account2]
+
+        changed = obj.get_changed_entities()
+        #caccount=account.copy()
+        #caccount.is_tombstone = True
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder(changed['be_accounts'], [account, account2])
 
     def testCE_simpledelete(self):
         obj = Budget()
         account = Account()
-        obj.be_accounts.delete(account)
-        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account]})
+        obj.be_accounts.append(account)
+        reset_track(obj)
+        obj.be_accounts.remove(account)
+        account.is_tombstone = True
+
+        changed = obj.get_changed_entities()
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder([account], changed['be_accounts'])
 
     def testCE_simplechange(self):
         obj = Budget()
         account1 = Account()
         obj.be_accounts.append(account1)
-        account2 = Account(id=account1.id, account_name='BLA')
-        obj.be_accounts.changed = []
-        obj.be_accounts.modify(account2)
-        self.assertEqual(obj.get_changed_entities(), {'be_accounts': [account2]})
+        reset_track(obj)
+        account1.account_name = 'TEST'
+        changed=obj.get_changed_entities()
+        self.collectionsEqualIgnoreOrder(list(changed.keys()), ['be_accounts'])
+        self.collectionsEqualIgnoreOrder(changed['be_accounts'], [account1])
 
     def test_str(self):
         # tests no exceptions when getting the string representation of some entities
         obj = Transaction()
         obj.__str__()
-        obj.__unicode__()
 
         obj2 = Budget()
         obj2.be_accounts.__str__()
-        obj2.be_accounts.__unicode__()
-
-    def testpropertyFields(self):
-        obj = Entity()
-        self.assertEqual(obj.Fields, {})
 
     def jsondefault(self):
         encoded = json.dumps('test', cls=ComplexEncoder)

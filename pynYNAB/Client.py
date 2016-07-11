@@ -1,26 +1,13 @@
+import logging
 from functools import wraps
 
-from pynYNAB.budget import Payee, Transaction
-from pynYNAB.catalog import BudgetVersion
-from pynYNAB.config import get_logger
-from pynYNAB.connection import NYnabConnectionError, nYnabConnection
+from pynYNAB.connection import nYnabConnection
+from pynYNAB.db.db import Session, CatalogBudget
+from pynYNAB.schema.budget import Payee, Transaction, Budget, SubCategory
+from pynYNAB.schema.catalog import BudgetVersion, Catalog
 from pynYNAB.utils import chunk
-from pynYNAB.roots import Budget, Catalog
 
-
-def clientfromargs(args, reset=False):
-    connection = nYnabConnection(args.email, args.password)
-    try:
-        client = nYnabClient(connection, budget_name=args.budgetname)
-        if reset:
-            # deletes the budget
-            client.delete_budget(args.budgetname)
-            client.create_budget(args.budgetname)
-            client.select_budget(args.budgetname)
-        return client
-    except BudgetNotFound:
-        print('No budget by this name found in nYNAB')
-        exit(-1)
+logger = logging.getLogger('pynYnab')
 
 
 class BudgetNotFound(Exception):
@@ -30,39 +17,35 @@ class BudgetNotFound(Exception):
 class nYnabClient(object):
     def __init__(self, nynabconnection, budget_name):
         if budget_name is None:
-            get_logger().error('No budget name was provided')
+            logger.error('No budget name was provided')
             exit(-1)
         self.budget_name = budget_name
         self.connection = nynabconnection
-        self.budget_name = budget_name
+
         self.catalog = Catalog()
+        self.catalog.sync(self.connection)
+
+        catalogbudget = Session.query(CatalogBudget).filter(CatalogBudget.budget_name == self.budget_name).first()
+        if not catalogbudget:
+            raise BudgetNotFound()
+        self.budget_version = Session.query(BudgetVersion).filter(BudgetVersion.budget_id == catalogbudget.id).first()
+
         self.budget = Budget()
-        self.budget_version = BudgetVersion()
+        self.budget.budget_version_id = self.budget_version.id
+
+        Session.add(self.budget)
+        Session.add(self.budget_version)
         self.sync()
 
-    def getinitialdata(self):
-        try:
-            getinitialdata = self.connection.dorequest({"device_info": {'id': self.connection.id}},
-                                                       'getInitialUserData')
-            self.budget.update_from_changed_entities(getinitialdata['budget'])
-            self.budget_version.update_from_dict(getinitialdata['budget_version'])
-            pass
-        except NYnabConnectionError:
-            pass
-
     def sync(self):
+        logger.info('Syncing with the server....')
         # ending-starting represents the number of modifications that have been done to the data ?
-        self.catalog.sync(self.connection, 'syncCatalogData')
-        if self.budget.budget_version_id is None:
-            for catalogbudget in self.catalog.ce_budgets:
-                if catalogbudget.budget_name == self.budget_name:
-                    for budget_version in self.catalog.ce_budget_versions:
-                        if budget_version.budget_id == catalogbudget.id:
-                            self.budget.budget_version_id = budget_version.id
-        if self.budget.budget_version_id is None and self.budget_name is not None:
+        self.catalog.sync(self.connection)
+
+        if self.budget_version is None and self.budget_name is not None:
             raise BudgetNotFound()
         else:
-            self.budget.sync(self.connection, 'syncBudgetData')
+            self.budget.sync(self.connection)
 
     def operation(fn):
         @wraps(fn)
@@ -91,11 +74,9 @@ class nYnabClient(object):
             accepted=True,
             amount=balance,
             entities_subcategory_id=immediateincomeid,
-            cash_amount=0,
             cleared='Cleared',
             date=balance_date,
             entities_account_id=account.id,
-            credit_amount=0,
             entities_payee_id=startingbalanceid,
             is_tombstone=False
         )
@@ -106,7 +87,7 @@ class nYnabClient(object):
 
     @operation
     def delete_account(self, account):
-        self.budget.be_accounts.delete(account)
+        self.budget.be_accounts.remove(account)
 
     @operation
     def add_transaction(self, transaction):
@@ -123,45 +104,19 @@ class nYnabClient(object):
 
     @operation
     def delete_transaction(self, transaction):
-        self.budget.be_transactions.delete(transaction)
-
-    def select_account_ui(self,create=False):
-        accounts=list(self.budget.be_accounts)
-
-        iaccount=0
-        if create:
-            print('#0 ###CREATE')
-            iaccount=1
-
-        for  account in accounts:
-            print('#%d %s' % (iaccount, account.account_name))
-            iaccount += 1
-        if create:
-            accounts=[None]+accounts
-
-
-        while True:
-            accountnumber = input('Which account? ')
-            try:
-                accountnumber = int(accountnumber)
-                if 0 <= accountnumber <= len(accounts) - 1:
-                    break
-            except ValueError:
-                pass
-            print('Please enter a number between %d and %d' % (0, len(accounts) - 1))
-            return accounts[accountnumber]
+        self.budget.be_transactions.remove(transaction)
 
     @operation
     def delete_budget(self, budget_name):
         for budget in self.catalog.ce_budgets:
             if budget.budget_name == budget_name:
-                budget.is_tombstone = True
-                self.catalog.ce_budgets.modify(budget)
+                self.catalog.ce_budgets.remove(budget)
 
     def select_budget(self, budget_name):
-        self.catalog.sync(self.connection, 'syncCatalogData')
+        self.catalog.sync(self.connection)
         for budget_version in self.catalog.ce_budget_versions:
-            budget = self.catalog.ce_budgets.get(budget_version.budget_id)
+            budget = Session.query(BudgetVersion).get(budget_version.budget_id)
+            #budget = self.catalog.ce_budgets.get(budget_version.budget_id)
             if budget.budget_name == budget_name:
                 self.budget.budget_version_id = budget_version.id
                 self.sync()

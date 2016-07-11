@@ -1,18 +1,19 @@
-import configargparse
 import random
 import unittest
 from datetime import datetime
 
+import configargparse
+
 from pynYNAB import KeyGenerator
-from pynYNAB.Entity import AccountTypes
-from pynYNAB.budget import Account, Payee
 from pynYNAB.Client import clientfromargs
-from pynYNAB.budget import Transaction
+from pynYNAB.schema.budget import Account, Payee
+from pynYNAB.schema.budget import Transaction
+from pynYNAB.schema.enums import AccountTypes
 
 
-class commonLive(unittest.TestCase):
+class CommonLive(unittest.TestCase):
     def __init__(self, *args, **kwargs):
-        super(commonLive, self).__init__(*args, **kwargs)
+        super(CommonLive, self).__init__(*args, **kwargs)
         self.account = None
         self.budget = None
         self.transaction = None
@@ -28,7 +29,7 @@ class commonLive(unittest.TestCase):
 
     def util_add_account(self):
         account = Account(
-            account_type=random.choice(list(AccountTypes)),
+            account_type=random.choice(list(AccountTypes)).value,
             account_name=KeyGenerator.generateuuid()
         )
 
@@ -51,7 +52,7 @@ class commonLive(unittest.TestCase):
             self.client.delete_account(account)
 
         account = Account(
-            account_type=AccountTypes.Checking,
+            account_type=AccountTypes.Checking.value,
             account_name=name
         )
 

@@ -1,37 +1,42 @@
 import time
 
 
-def RateLimited(maxpersecond):
+def ratelimited(maxpersecond):
     minInterval = 1.0 / float(maxpersecond)
+
     def decorate(func):
         lastTimeCalled = [0.0]
-        def rateLimitedFunction(*args,**kargs):
+
+        def rate_limited_function(*args, **kargs):
             elapsed = time.clock() - lastTimeCalled[0]
             leftToWait = minInterval - elapsed
-            if leftToWait>0:
+            if leftToWait > 0:
                 time.sleep(leftToWait)
-            ret = func(*args,**kargs)
+            ret = func(*args, **kargs)
             lastTimeCalled[0] = time.clock()
             return ret
-        return rateLimitedFunction
+
+        return rate_limited_function
+
     return decorate
+
 
 def chunk(iterable, chunk_size):
     """Generate sequences of `chunk_size` elements from `iterable`."""
     iterable = iter(iterable)
     while True:
-        chunk = []
+        newchunk = []
         try:
             for _ in range(chunk_size):
-                chunk.append(next(iterable))
-            yield chunk
+                newchunk.append(next(iterable))
+            yield newchunk
         except StopIteration:
-            if chunk:
-                yield chunk
+            if newchunk:
+                yield newchunk
             break
 
-# http://stackoverflow.com/q/10480806/1685379
-def equal_dicts(a, b, ignore_keys):
-    ka = set(a).difference(ignore_keys)
-    kb = set(b).difference(ignore_keys)
-    return ka == kb and all(a[k] == b[k] for k in ka)
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+

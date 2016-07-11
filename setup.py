@@ -1,22 +1,28 @@
 import os.path
 
+import sys
 from setuptools import setup, find_packages
 
 # Get the long description from the relevant file
 __here__ = os.path.dirname(os.path.realpath(__file__))
 readme_filename = os.path.join(os.path.dirname(__file__), 'README.rst')
 with open(readme_filename, 'r') as f:
-  readme = f.read()
+    readme = f.read()
 try:
     import pypandoc
+
     readme = pypandoc.convert(readme, to='rst', format='md')
 except:
     print("Conversion of long_description from markdown to reStructuredText failed, skipping...")
     pass
 
+conditional_install_requires=[]
+if sys.version[0] == '2':
+    conditional_install_requires.append('backports.csv')
+
 setup(
     name='pynYNAB',
-    version='0.1',
+    version='0.2',
     # Note: change 'master' to the tag name when release a new verion
     download_url='https://github.com/rienafairefr/nYNABapi/tarball/master',
 
@@ -52,16 +58,21 @@ setup(
 
     packages=find_packages(),
 
+    dependency_links=[
+        'https://github.com/csingley/ofxtools/archives/4a3e496d7d2a3babdeabd4e114d98fc5f2862667.zip#egg=0.3.8',
+    ],
+
     install_requires=[
         'configargparse',
         'enum34',
-        'ofxtools',
+        'sqlalchemy',
+        'ofxtools<=0.3.8',
         'pynab',
         'requests',
         'jsontableschema',
         'unicodecsv',
         'appdirs'
-    ],
+    ]+conditional_install_requires,
 
     package_data={
         'pynYNAB': ['tests/*'],

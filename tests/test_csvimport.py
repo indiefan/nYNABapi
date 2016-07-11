@@ -1,113 +1,240 @@
+# coding=utf-8
+import errno
+import io
+import json
 import os
-from datetime import datetime
+import sys
+import unittest
+from datetime import datetime, date
 
 import configargparse
-import errno
+from sqlalchemy import create_engine
 
-from pynYNAB.Entity import ComplexEncoder
-from pynYNAB.budget import Transaction
-from pynYNAB.scripts.csvimport import do_csvimport
-from common_Live import commonLive
-import json
+from pynYNAB.connection import ComplexEncoder
+from pynYNAB.db import Base
+from pynYNAB.schema.budget import Transaction
+from pynYNAB.scripts.common import get_payee, get_account, get_subcategory
+from pynYNAB.scripts.csvimport import transaction_list, transaction_dedup
+from tests.mock import MockClient
 
 
-class TestCsv(commonLive):
-    def getTr(self, date, payee, amount, memo, account):
+def setup_module():
+    global transaction, connection, engine
+
+    # Connect to the database and create the schema within a transaction
+    engine = create_engine('sqlite:///:memory:')
+    connection = engine.connect()
+    transaction = connection.begin()
+    Base.metadata.create_all(connection)
+
+    # If you want to insert fixtures to the DB, do it here
+
+
+def teardown_module():
+    # Roll back the top level transaction and disconnect from the database
+    transaction.rollback()
+    connection.close()
+    engine.dispose()
+
+class TestCsv(unittest.TestCase):
+    def getTr(self, date, payee_name, amount, memo, account_name):
         imported_date = datetime.now().date()
+
+        payee = get_payee(self.client, payee_name, create=True)
+        account = get_account(self.client, account_name, create=True)
+
         return Transaction(
-            entities_account_id=self.util_get_empty_account_by_name_if_doesnt_exist(account).id,
+            entities_account_id=account.id,
             date=date,
-            entities_payee_id=self.util_add_payee_by_name_if_doesnt_exist(payee).id,
+            entities_payee_id=payee.id,
             imported_payee=payee,
             source='Imported',
             memo=memo,
             amount=amount,
-            cash_amount=amount,
             imported_date=imported_date
         )
 
-    def test_duplicate(self):
+    def setUp(self):
         parser = configargparse.getArgumentParser('pynYNAB')
-        args = parser.parse_known_args()[0]
-        args.schema = 'example'
-        args.csvfile = os.path.join('data', 'test.csv')
-        args.accountname = None
-        args.import_duplicates = False
-        args.level = 'debug'
+        self.args = parser.parse_known_args()[0]
+        self.args.schema = 'example'
+        self.args.csvfile = os.path.join('data', 'test.csv')
+        self.args.accountname = None
+        self.args.import_duplicates = False
+        self.args.level = 'debug'
+        self.args.encoding = 'utf-8'
 
-        content = """Date,Payee,Amount,Memo,Account
-2016-02-01,Super Pants Inc.,-20,Buying pants,Credit
-"""
         try:
-            os.makedirs(os.path.dirname(args.csvfile))
+            os.makedirs(os.path.dirname(self.args.csvfile))
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise
 
-        with open(args.csvfile, mode='w') as f:
-            f.writelines(content)
+        self.client = MockClient()
 
-        transaction=self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants', 'Credit')
+    def writecsv(self, content, encoding='utf-8'):
+        with io.open(self.args.csvfile, mode='w', encoding=encoding) as f:
+            if sys.version[0] == '2':
+                f.writelines(unicode(content))
+            else:
+                f.writelines(content)
 
-        for i in range(2):
-            do_csvimport(args)
-            self.reload()
-            identical=[tr2 for tr2 in self.client.budget.be_transactions if transaction.hash() == tr2.hash()]
-            print('Transactions with same hash: %s'%len(identical))
-            self.assertTrue(len(identical) == 1)
+    def test_duplicate(self):
+        content = """Date,Payee,Amount,Memo,Account
+2016-02-01,Super Pants Inc.,-20,Buying pants,Credit
+"""
+        self.writecsv(content)
 
+        transaction = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
+                                 'Credit')
+
+        self.client.budget.be_transactions.append(transaction)
+
+        tr_list = transaction_list(self.args, self.client)
+
+        self.assertEqual(len(tr_list), 0)
 
     def test_duplicateForced(self):
-        parser = configargparse.getArgumentParser('pynYNAB')
-        args = parser.parse_known_args()[0]
-        args.schema = 'example'
-        args.csvfile = os.path.join('data', 'test.csv')
-        args.accountname = None
-        args.import_duplicates = True
-        args.level = 'debug'
-
         content = """Date,Payee,Amount,Memo,Account
 2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
 """
-        with open(args.csvfile, mode='w') as f:
-            f.writelines(content)
+        self.writecsv(content)
 
-        transaction=self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants', 'Cash')
+        transaction = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
+                                 'Cash')
 
-        do_csvimport(args)
-        self.reload()
-        do_csvimport(args)
-        self.reload()
-        self.assertTrue(len([tr2 for tr2 in self.client.budget.be_transactions if transaction.hash() == tr2.hash()]) == 2)
+        args = self.args
+        args.import_duplicates = True
+
+        self.client.budget.be_transactions.append(transaction)
+
+        tr_list = transaction_list(self.args, self.client)
+
+        self.assertEqual(len(tr_list), 1)
+
+    def test_import_categoryschema_bad_category(self):
+            content = """Date,Payee,Category,Memo,Outflow,Inflow
+2016-02-01,Super Pants Inc.,MC1:Clothes,Buying Pants,20,0
+2016-02-06,Mr Smith,MC2:Rent,"Landlord, Wiring",600,0
+            """
+
+            self.args.schema = 'ynab'
+            self.args.accountname = 'Checking Account'
+
+            self.writecsv(content)
+
+            clothes = get_subcategory(self.client, 'MC1', 'Clothes', create=True)
+
+            rent = get_subcategory(self.client, 'MC2', 'Rent', create=True)
+            self.client.budget.be_subcategories.remove(clothes)
+            self.client.budget.be_subcategories.remove(rent)
+            self.client.budget.be_master_categories.remove(clothes.master_category)
+            self.client.budget.be_master_categories.remove(rent.master_category)
+
+            tr1 = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
+                             'Checking Account')
+
+            tr1.subcategory = clothes
+
+            tr2 = self.getTr(date(year=2016, month=2, day=6), 'Mr Smith', -600, 'Landlord, Wiring', 'Checking Account')
+
+            tr2.subcategory = rent
+
+            self.assertRaises(SystemExit, lambda:transaction_list(self.args, self.client))
+
+
+    def test_import_categoryschema(self):
+        content = """Date,Payee,Category,Memo,Outflow,Inflow
+2016-02-01,Super Pants Inc.,MC1:Clothes,Buying Pants,20,0
+2016-02-06,Mr Smith,MC2:Rent,"Landlord, Wiring",600,0
+        """
+
+        self.args.schema = 'ynab'
+        self.args.accountname = 'Checking Account'
+
+        self.writecsv(content)
+
+        clothes = get_subcategory(self.client, 'MC1', 'Clothes', create=True)
+        rent = get_subcategory(self.client, 'MC2', 'Rent', create=True)
+
+        tr1 = self.getTr(date(year=2016, month=2, day=1), 'Super Pants Inc.', -20, 'Buying pants',
+                         'Checking Account')
+
+        tr1.subcategory = clothes
+
+        tr2 = self.getTr(date(year=2016, month=2, day=6), 'Mr Smith', -600, 'Landlord, Wiring', 'Checking Account')
+
+        tr2.subcategory = rent
+
+        tr_list = transaction_list(self.args, self.client)
+
+        for tr in tr1, tr2:
+            self.assertIn(transaction_dedup(tr), map(transaction_dedup,tr_list))
+
+    def test_inexistent_account(self):
+        content = """Date,Payee,Amount,Memo,Account
+2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
+"""
+        self.writecsv(content)
+
+        self.client.budget.be_accounts.remove(get_account(self.client, 'Cash', create=True))
+        self.assertRaises(SystemExit, lambda: transaction_list(self.args, self.client))
+
+    def test_inexistent_payee(self):
+        content = """Date,Payee,Amount,Memo,Account
+2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
+"""
+        self.writecsv(content)
+
+        self.client.budget.be_payees.remove(get_payee(self.client, 'Super Pants Inc.', create=True))
+        self.assertRaises(SystemExit, lambda: transaction_list(self.args, self.client))
 
     def test_import(self):
-        parser = configargparse.getArgumentParser('pynYNAB')
-        args = parser.parse_known_args()[0]
-        args.schema = 'example'
-        args.csvfile = os.path.join('data', 'test.csv')
-        args.accountname = None
-        args.import_duplicates=False
-        args.level = 'debug'
-
         content = """Date,Payee,Amount,Memo,Account
 2016-02-01,Super Pants Inc.,-20,Buying pants,Cash
 2016-02-02,Thai Restaurant,-10,Food,Checking Account
+2016-02-02,Chinese Restaurant,-5,Food,Cash
+#this line ignored
+10/02/2016,Chinese Restaurant,-5,Food,Cash
+#previous line invalid cast ignored
 2016-02-03,,10,Saving!,Savings
         """
-        with open(args.csvfile, mode='w') as f:
-            f.writelines(content)
+        self.writecsv(content)
 
         Transactions = [
-            self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants', 'Cash'),
+            self.getTr(datetime(year=2016, month=2, day=1).date(), 'Super Pants Inc.', -20, 'Buying pants',
+                       'Cash'),
             self.getTr(datetime(year=2016, month=2, day=2).date(), 'Thai Restaurant', -10, 'Food', 'Checking Account'),
+            self.getTr(datetime(year=2016, month=2, day=2).date(), 'Chinese Restaurant', -5, 'Food', 'Cash'),
             self.getTr(datetime(year=2016, month=2, day=3).date(), '', 10, 'Saving!', 'Savings'),
         ]
 
-        do_csvimport(args)
-        self.reload()
+        tr_list = transaction_list(self.args, self.client)
+
         for tr in Transactions:
             print(json.dumps(tr, cls=ComplexEncoder))
             print(json.dumps(
-                [tr2 for tr2 in self.client.budget.be_transactions if tr2.amount == tr.amount],
+                [tr2 for tr2 in tr_list if tr2.amount == tr.amount],
                 cls=ComplexEncoder))
-            self.assertTrue(self.client.budget.be_transactions.containsduplicate(tr))
+            self.assertIn(transaction_dedup(tr), map(transaction_dedup, tr_list))
+
+    def test_encoded(self):
+        content = u"""Date,Payee,Amount,Memo,Account
+2016-02-01,Grand Café,-3,Coffee,Cash
+"""
+        self.writecsv(content, encoding='iso-8859-1')
+        self.args.encoding = 'iso-8859-1'
+
+        Transactions = {
+            self.getTr(datetime(year=2016, month=2, day=1).date(), u'Grand Café', -3, 'Coffee',
+                       'Cash'),
+        }
+
+        tr_list = transaction_list(self.args, self.client)
+
+        for tr in Transactions:
+            print(json.dumps(tr, cls=ComplexEncoder))
+            print(json.dumps(
+                [tr2 for tr2 in tr_list if tr2.amount == tr.amount],
+                cls=ComplexEncoder))
+            self.assertIn(transaction_dedup(tr), list(map(transaction_dedup, tr_list)))
