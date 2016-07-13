@@ -5,7 +5,8 @@ from datetime import datetime
 import configargparse
 
 from pynYNAB import KeyGenerator
-from pynYNAB.Client import clientfromargs
+from pynYNAB.app import clientfromargs
+from pynYNAB.app.config import args
 from pynYNAB.schema.budget import Account, Payee
 from pynYNAB.schema.budget import Transaction
 from pynYNAB.schema.enums import AccountTypes
@@ -20,8 +21,6 @@ class CommonLive(unittest.TestCase):
         self.client = None
 
     def reload(self):
-        parser = configargparse.getArgumentParser('pynYNAB')
-        args = parser.parse_known_args()[0]
         self.client = clientfromargs(args)
 
     def setUp(self):

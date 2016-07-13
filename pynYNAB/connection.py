@@ -6,7 +6,7 @@ from time import sleep
 import requests
 from requests.cookies import RequestsCookieJar
 
-from pynYNAB.db.Entity import EntityBase
+from pynYNAB.Entity import EntityBase as EntityClass
 from pynYNAB.utils import ratelimited
 
 
@@ -20,7 +20,7 @@ logger = logging.getLogger('pynYnab')
 
 class ComplexEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, EntityBase):
+        if isinstance(obj, EntityClass):
             return obj.get_dict(convert=True)
         else:
             return json.JSONEncoder.default(self, obj)

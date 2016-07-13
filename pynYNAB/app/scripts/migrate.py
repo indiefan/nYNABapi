@@ -6,8 +6,8 @@ import re
 import configargparse
 from ynab import YNAB
 
-from pynYNAB.Client import clientfromargs
-from pynYNAB.config import test_common_args
+from pynYNAB.app import clientfromargs
+from pynYNAB.app.config import test_common_args
 from pynYNAB.schema.budget import Payee, MasterCategory, Account, SubCategory
 
 

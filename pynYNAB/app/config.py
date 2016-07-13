@@ -21,6 +21,10 @@ group.add_argument('-echo', required=False, action='store_true',
 group.add_argument('-echodb', required=False, action='store_true',
                    help='echoes all client db accesses (warning, very verbose)')
 
+group.add_argument('-storage_engine', required=False, action='store_true',default  = 'sqlite:///:memory:',
+                   help='The string to connect to the local db')
+
+
 group.add_argument('--budgetname', metavar='BudgetName', type=str, required=False,
                    help='The nYNAB budget to use')
 

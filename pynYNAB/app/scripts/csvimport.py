@@ -1,5 +1,5 @@
-import codecs
 import inspect
+import io
 import json
 import os
 import sys
@@ -7,14 +7,13 @@ from collections import namedtuple
 from datetime import datetime
 
 import configargparse
-import io
 from jsontableschema.exceptions import InvalidSchemaError, InvalidCastError, ConversionError
 from jsontableschema.model import SchemaModel
 
-from pynYNAB.Client import clientfromargs
-from pynYNAB.config import get_logger, test_common_args
+from pynYNAB.app import clientfromargs
+from pynYNAB.app.config import get_logger, test_common_args
+from pynYNAB.app.scripts.common import get_account, get_subcategory, get_payee, transaction_dedup
 from pynYNAB.schema.budget import Transaction
-from pynYNAB.scripts.common import get_account, get_subcategory, get_payee, transaction_dedup
 
 scriptsdir = os.path.dirname(os.path.abspath(__file__))
 schemas_dir = os.path.join(scriptsdir, 'csv_schemas')

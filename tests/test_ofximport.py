@@ -3,7 +3,8 @@ import unittest
 from datetime import datetime
 
 from pynYNAB.schema.budget import Transaction, Account, Payee
-from pynYNAB.scripts.ofximport import transaction_list
+from pynYNAB.app.scripts.ofximport import transaction_list
+from tests.common_test import commonTestCaseBase
 from tests.mock import MockClient
 
 
@@ -11,7 +12,7 @@ class thing():
     pass
 
 
-class TestOFX(unittest.TestCase):
+class TestOFX(commonTestCaseBase):
     content = """OFXHEADER:100
     DATA:OFXSGML
     VERSION:102

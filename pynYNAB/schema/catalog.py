@@ -5,7 +5,7 @@ from sqlalchemy.types import String,Integer
 from sqlalchemy import Column as OriginalColumn
 
 from pynYNAB.db import Base
-from pynYNAB.db.Entity import Entity, Column, Boolean
+from pynYNAB.Entity import Entity, Column, Boolean
 from pynYNAB.roots import Root, ListOfEntities
 
 
@@ -19,7 +19,7 @@ class Catalog(Root, Base):
     ce_budgets = ListOfEntities('CatalogBudget')
 
     track_id = Column(String, ForeignKey('catalog.id'))
-    track = relationship('Catalog')
+    track = relationship('Catalog',uselist=False)
 
 class CatalogEntity(Entity):
     @declared_attr

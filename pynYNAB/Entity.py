@@ -1,22 +1,22 @@
-from sqlalchemy import Column as OriginalColumn
-from sqlalchemy.ext import hybrid
-from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.types import Boolean, String, Date, Enum
-from sqlalchemy.exc import InvalidRequestError
-from sqlalchemy.orm import class_mapper, ColumnProperty
-
-from pynYNAB import KeyGenerator
-from pynYNAB.config import get_logger
-from pynYNAB.db.Types import Amount, Converter, IgnorableString, IgnorableBoolean, Amounthybrid
-from pynYNAB.schema import enums
+import logging
 import pprint
 
+from sqlalchemy import Column as OriginalColumn
+from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.ext import hybrid
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.orm import class_mapper, ColumnProperty
+from sqlalchemy.types import Boolean, String, Date
+
+from pynYNAB import KeyGenerator
+from pynYNAB.Types import Amount, Converter, IgnorableString, IgnorableBoolean, Amounthybrid
 from pynYNAB.schema.enums import MyEnumType
 
 
 class Column(OriginalColumn):
     pass
 
+logger = logging.getLogger('pynYnab')
 
 class EntityBase(object):
     @declared_attr
@@ -60,12 +60,15 @@ class EntityBase(object):
         return result
 
     @classmethod
-    def from_dict(cls, dictionary, convert = False):
+    def from_dict(cls, dictionary, convert=False):
+        obj = cls()
+        return cls.update_from_dict(obj, dictionary,convert)
+
+    @classmethod
+    def update_from_dict(cls, obj, dictionary, convert = False):
         mapper_class = cls.__mapper__
         if convert:
             dictionary = cls.convert_out(dictionary)
-        objdict = {}
-        logger = get_logger()
         logger.debug('Filtering dict to create %s from dict %s' % (cls, dictionary))
         filtered = {k: v for k, v in dictionary.items() if k in mapper_class.column_attrs}
         for key, value in filtered.items():
@@ -83,9 +86,8 @@ class EntityBase(object):
                         'Most probably the YNAB API changed, please add that field to the entities schema')
                     raise ValueError()
             if isinstance(field, ColumnProperty):
-                objdict[key] = value
-        logger.debug('Creating a %s from dict %s' % (cls, objdict))
-        return cls(**objdict)
+                setattr(obj,key,value)
+        return obj
 
     @classmethod
     def convert_out(cls, d):

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import class_mapper, RelationshipProperty, ColumnProperty
-from pynYNAB.db.Entity import Entity
+from pynYNAB.Entity import Entity
 from six import iteritems
 
 
@@ -13,7 +13,6 @@ class ListOfEntities(RelationshipProperty):
         super(ListOfEntities,self).__init__(*args,cascade='all, delete-orphan',lazy='subquery',**kwargs)
 
     def update_from_changed_entities(self, instance, changed):
-        from pynYNAB.db.db import session_scope
         currentlist=getattr(instance,self.key)
         otherclass = self.mapper.class_
 
@@ -44,12 +43,12 @@ class Root(Entity):
         self.device_knowledge_of_server = 0
         self.server_knowledge_of_device = 0
 
-        from pynYNAB.db.track import init_event_tracking
+        from pynYNAB.track import init_event_tracking
 
         root_class = self.__class__
         self.tracked = tracked
         if self.tracked:
-            from pynYNAB.db.track import add_trackers, add_set_tracker
+            from pynYNAB.track import add_trackers, add_set_tracker
             for key, list_property in self.listfields.items():
                 child_class = list_property.mapper.class_
 
@@ -59,27 +58,34 @@ class Root(Entity):
                     if isinstance(child_property, ColumnProperty):
                         add_set_tracker(self,root_class, list_property, child_property)
 
-                originalsetattr = self.__setattr__
-
-                def setattrnew(name,value):
-                    print(('setattr',name,value))
-                    originalsetattr(name,value)
-
-                self.__setattr__ = setattrnew
-
-
         super(Root, self).__init__()
 
 
     @property
     def listfields(self):
-        return {property.key: property for property in class_mapper(self.__class__).iterate_properties if
-                isinstance(property, ListOfEntities)}
+        return {p.key: p for p in class_mapper(self.__class__).iterate_properties if
+                isinstance(p, ListOfEntities)}
+
+    @property
+    def fields(self):
+        return {p.key: p for p in class_mapper(self.__class__).iterate_properties if
+                isinstance(p, ListOfEntities)}
 
     def update_from_syncdata(self, sync_data):
         changed_entities = sync_data['changed_entities']
         for key in changed_entities:
-            pass
+            if key not in self.listfields:
+                continue
+            _class_=self.listfields[key].mapper.class_
+
+            l=changed_entities[key]
+            if l is None:
+                continue
+            newl = list()
+            for el in l:
+                obj = _class_.from_dict(el,convert=True)
+                newl.append(obj)
+            changed_entities[key]=newl
         self.update_from_changed_entities(changed_entities)
 
         self.server_knowledge_of_device = sync_data['server_knowledge_of_device']
@@ -94,11 +100,17 @@ class Root(Entity):
         sync_data = connection.dorequest(request_data, self.OPNAME)
         self.update_from_syncdata(sync_data)
 
-
     def update_from_changed_entities(self, changed_entities):
-        for key, prop in self.listfields.items():
-            if key in changed_entities and changed_entities[key]:
-                prop.update_from_changed_entities(self, changed_entities[key])
+        for key,value in changed_entities.items():
+            if value is None:
+                continue
+        #for key, prop in self.listfields.items():
+            if key in self.listfields:
+                prop=self.listfields[key]
+                prop.update_from_changed_entities(self, value)
+            else:
+                setattr(self,key,value)
+
 
 
     def get_changed_entities(self):

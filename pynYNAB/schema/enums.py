@@ -33,7 +33,7 @@ class MyEnumType(sqlalchemy.types.TypeDecorator):
         self.values = values
 
     def process_bind_param(self, value, dialect):
-        return None if value == None else getattr(self.values,value).name
+        return None if value is None else getattr(self.values,value).name
 
     def process_result_value(self, value, dialect):
-        return None if value == None else self.values[value]
+        return None if value is None else self.values[value]

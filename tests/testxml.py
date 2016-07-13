@@ -1,5 +1,4 @@
 import xml.etree.ElementTree as ET
-import os
 
 
 content="""<?xml version="1.0"?>

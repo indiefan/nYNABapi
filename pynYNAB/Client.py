@@ -1,10 +1,13 @@
 import logging
 from functools import wraps
 
-from pynYNAB.connection import nYnabConnection
-from pynYNAB.db.db import Session, CatalogBudget
-from pynYNAB.schema.budget import Payee, Transaction, Budget, SubCategory
-from pynYNAB.schema.catalog import BudgetVersion, Catalog
+from sqlalchemy import create_engine
+
+from pynYNAB.db import Session, Base
+from pynYNAB.schema.budget import Payee, Transaction, Budget
+from pynYNAB.schema.catalog import BudgetVersion, Catalog, CatalogBudget
+
+
 from pynYNAB.utils import chunk
 
 logger = logging.getLogger('pynYnab')
@@ -15,26 +18,38 @@ class BudgetNotFound(Exception):
 
 
 class nYnabClient(object):
-    def __init__(self, nynabconnection, budget_name):
+    def __init__(self, nynabconnection, budget_name, storage_engine=None):
         if budget_name is None:
             logger.error('No budget name was provided')
             exit(-1)
+        if storage_engine is None:
+            logger.Error('SQLAlchemy backend needs somewhere to save the data locally ')
+            exit(-1)
+        else:
+            engine = create_engine(storage_engine)
+            Base.metadata.create_all(engine)
+            Session.configure(bind=engine)
+
         self.budget_name = budget_name
         self.connection = nynabconnection
 
         self.catalog = Catalog()
         self.catalog.sync(self.connection)
 
+
+
         catalogbudget = Session.query(CatalogBudget).filter(CatalogBudget.budget_name == self.budget_name).first()
         if not catalogbudget:
             raise BudgetNotFound()
-        self.budget_version = Session.query(BudgetVersion).filter(BudgetVersion.budget_id == catalogbudget.id).first()
+        self.budget_version = Session.query(BudgetVersion).filter(
+            BudgetVersion.budget_id == catalogbudget.id).first()
 
         self.budget = Budget()
         self.budget.budget_version_id = self.budget_version.id
 
         Session.add(self.budget)
         Session.add(self.budget_version)
+        Session.flush()
         self.sync()
 
     def sync(self):
@@ -116,7 +131,7 @@ class nYnabClient(object):
         self.catalog.sync(self.connection)
         for budget_version in self.catalog.ce_budget_versions:
             budget = Session.query(BudgetVersion).get(budget_version.budget_id)
-            #budget = self.catalog.ce_budgets.get(budget_version.budget_id)
+            # budget = self.catalog.ce_budgets.get(budget_version.budget_id)
             if budget.budget_name == budget_name:
                 self.budget.budget_version_id = budget_version.id
                 self.sync()

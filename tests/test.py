@@ -1,25 +1,22 @@
 import json
+import sys
 import unittest
 from datetime import datetime
 
-import sys
 from sqlalchemy import Date
+from sqlalchemy import create_engine
 
+from pynYNAB.Entity import Column
+from pynYNAB.Types import Amount
 from pynYNAB.connection import ComplexEncoder
-from pynYNAB.db import Base, engine, BaseModel
-from pynYNAB.db.Entity import Column
-from pynYNAB.db.Types import Amount
-from pynYNAB.db.db import session_scope, String, MyEnumType
+from pynYNAB.db import Base, session_scope, session_factory, Session
 from pynYNAB.schema.budget import Account, AccountCalculation, AccountMapping, MasterCategory, Transaction, SubCategory, \
     MonthlyAccountCalculation, MonthlyBudget, MonthlySubCategoryBudget, MonthlyBudgetCalculation, \
     MonthlySubCategoryBudgetCalculation, PayeeLocation, Payee, PayeeRenameCondition, ScheduledSubtransaction, \
     ScheduledTransaction, Setting, Subtransaction, Budget, BudgetEntity
 from pynYNAB.schema.catalog import BudgetVersion, User, UserBudget, UserSetting
-from pynYNAB.db.track import reset_track
-from sqlalchemy.sql.sqltypes import Enum, Integer
-from sqlalchemy import create_engine
-from enum import Enum as eEnum
-from pynYNAB.db.db import Session
+from pynYNAB.track import reset_track
+from tests.common_test import commonTestCaseBase
 
 types = [
     Account,
@@ -46,27 +43,10 @@ types = [
     UserSetting
 ]
 
-def setup_module():
-    global transaction, connection, engine
 
-    # Connect to the database and create the schema within a transaction
-    engine = create_engine('sqlite:///:memory:')
-    connection = engine.connect()
-    transaction = connection.begin()
-    Base.metadata.create_all(connection)
-
-    # If you want to insert fixtures to the DB, do it here
-
-
-def teardown_module():
-    # Roll back the top level transaction and disconnect from the database
-    transaction.rollback()
-    connection.close()
-    engine.dispose()
-
-
-class Tests(unittest.TestCase):
+class Tests(commonTestCaseBase):
     maxDiff = None
+
 
     def collectionsEqualIgnoreOrder(self, expected_seq, actual_seq, msg=None):
         if sys.version_info[0] == '2':

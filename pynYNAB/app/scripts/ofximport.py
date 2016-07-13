@@ -4,10 +4,10 @@ from datetime import datetime
 import configargparse
 from ofxtools import OFXTree
 
-from pynYNAB.Client import clientfromargs
-from pynYNAB.config import test_common_args
+from pynYNAB.app import clientfromargs
+from pynYNAB.app.config import test_common_args
 from pynYNAB.schema.budget import Transaction
-from pynYNAB.scripts.common import get_payee, select_account_ui
+from pynYNAB.app.scripts.common import get_payee, select_account_ui
 
 
 def ofximport_main():

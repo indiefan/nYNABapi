@@ -15,7 +15,7 @@ def get_account(client, account_name, create=False):
             client.budget.be_accounts.append(a)
             return a
         else:
-            logger.error('Couldn''t find this account: %s' % (account_name))
+            logger.error('Couldn''t find this account: %s' % account_name)
             exit(-1)
 
 
@@ -28,7 +28,7 @@ def get_payee(client, payee_name, create=False):
             client.budget.be_payees.append(p)
             return p
         else:
-            logger.error('Couldn''t find this payee: %s' % (payee_name))
+            logger.error('Couldn''t find this payee: %s' % payee_name)
             exit(-1)
 
 

@@ -2,13 +2,11 @@ import functools
 
 from sqlalchemy import event
 
-from pynYNAB.config import echo
-from pynYNAB.db.db import session_scope, Catalog
+from pynYNAB.app.config import echo
+from pynYNAB.db import session_scope
 
 
 def init_event_tracking(list_property):
-    child_class = list_property.mapper.class_
-
     if not event.contains(list_property, 'append', track_append):
         event.listens_for(list_property, 'append')(track_append)
     if not event.contains(list_property, 'remove', track_remove):

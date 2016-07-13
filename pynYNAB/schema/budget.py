@@ -1,18 +1,17 @@
 import random
+from datetime import datetime
 
-from datetime import datetime, date
 from sqlalchemy import Column as OriginalColumn
-from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship,validates
 from sqlalchemy.schema import ForeignKey
-from sqlalchemy.types import Date, Boolean, String, Enum, Integer
+from sqlalchemy.types import Date, Boolean, String, Integer
 
+from pynYNAB.Entity import Entity, Column, EntityBase
+from pynYNAB.Types import Amount, IgnorableString, IgnorableBoolean, Amounthybrid
+from pynYNAB.Types import Dates
 from pynYNAB.db import Base
-from pynYNAB.db.Entity import Entity, Column, EntityBase
-from pynYNAB.db.Types import Amount, IgnorableString, IgnorableBoolean, Amounthybrid
-from pynYNAB.db.Types import Dates
 from pynYNAB.roots import Root, ListOfEntities
 from pynYNAB.schema.catalog import BudgetVersion
 from pynYNAB.schema.enums import AccountTypes, Sources, MyEnumType
