@@ -53,7 +53,7 @@ class TestCsv(commonLive):
         for i in range(2):
             do_csvimport(args)
             self.reload()
-            identical=[tr2 for tr2 in self.client.budget.be_transactions if transaction.hash() == tr2.hash()]
+            identical=[tr2 for tr2 in self.client.budget.be_transactions if transaction._hash() == tr2._hash()]
             print('Transactions with same hash: %s'%len(identical))
             self.assertTrue(len(identical) == 1)
 
@@ -79,7 +79,7 @@ class TestCsv(commonLive):
         self.reload()
         do_csvimport(args)
         self.reload()
-        self.assertTrue(len([tr2 for tr2 in self.client.budget.be_transactions if transaction.hash() == tr2.hash()]) == 2)
+        self.assertTrue(len([tr2 for tr2 in self.client.budget.be_transactions if transaction._hash() == tr2._hash()]) == 2)
 
     @needs_account('Cash')
     @needs_account('Checking Account')

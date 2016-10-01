@@ -46,7 +46,7 @@ class Test1(unittest.TestCase):
 
     def test_hash(self):
         tr1 = Transaction()
-        result = tr1.hash()
+        result = tr1._hash()
         self.assertIsInstance(result, int)
 
 
