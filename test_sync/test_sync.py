@@ -8,6 +8,7 @@ from pynYNAB.scripts.config import parser
 class TestSync(unittest.TestCase):
     @staticmethod
     def test_sync():
+        print('test_sync')
         args = parser.parse_known_args()[0]
         client = clientfromargs(args)
         client.sync()
