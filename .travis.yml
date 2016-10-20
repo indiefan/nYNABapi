@@ -9,7 +9,7 @@ install:
 - pip install -r requirements.txt
 - pip install coveralls
 before_install:
-- export TRAVIS_COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)"
+- export TRAVIS_COMMIT_MESSAGE=$(git log --format=%B -n 1 $TRAVIS_COMMIT)
 - echo "$TRAVIS_COMMIT_MESSAGE"
 script:
 - 'if [[ "$TRAVIS_EVENT_TYPE" = "cron" || "$TRAVIS_COMMIT_MESSAGE" = "[ci-cron]" ]]; then
