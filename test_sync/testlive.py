@@ -138,13 +138,13 @@ class LiveTests(commonLive):
 
     @needs_account()
     def test_add_splittransactions(self):
-        subcatsplit_id = next(subcategory.id for subcategory in self.client.budget.be_subcategories if
+        subcatsplit = next(subcategory for subcategory in self.client.budget.be_subcategories if
                               subcategory.internal_name == 'Category/__Split__')
         transaction = Transaction(
             amount=1,
             date=datetime.now(),
             entities_account=self.account,
-            entities_subcategory_id=subcatsplit_id
+            entities_subcategory=subcatsplit
         )
         sub1 = Subtransaction(
             amount=5000,
