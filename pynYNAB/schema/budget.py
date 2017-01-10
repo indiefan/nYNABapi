@@ -358,8 +358,8 @@ class Account(Base, BudgetEntity):
     on_budget = Column(Boolean, default=True)
 
     direct_connect_enabled = Column(Boolean, default=False)
-    direct_connect_account_id = Column(nYnabGuid)
-    direct_connect_institution_id = Column(nYnabGuid)
+    direct_connect_account_id = Column(String)
+    direct_connect_institution_id = Column(String)
     direct_connect_last_imported_at = Column(Date)
     direct_connect_last_error_code = Column(String)
 
