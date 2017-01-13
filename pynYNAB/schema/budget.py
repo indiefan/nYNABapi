@@ -8,8 +8,8 @@ from sqlalchemy import String
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 
-from pynYNAB.schema.Entity import Entity, AccountTypes, Base, RootEntity
-from pynYNAB.schema.types import AmountType, nYnabGuid
+from Entity import Entity, AccountTypes, Base, RootEntity
+from types import AmountType, nYnabGuid
 
 
 class BudgetEntity(Entity):

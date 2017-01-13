@@ -5,8 +5,8 @@ from sqlalchemy import String
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 
-from pynYNAB.schema.Entity import Entity, Base, RootEntity
-from pynYNAB.schema.types import ArrayType
+from Entity import Entity, Base, RootEntity
+from types import ArrayType
 
 
 class CatalogEntity(Entity):

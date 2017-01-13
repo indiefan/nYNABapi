@@ -4,12 +4,12 @@ from functools import wraps
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from pynYNAB.connection import nYnabConnection
-from pynYNAB.schema.Entity import Base
-from pynYNAB.schema.budget import Payee, Transaction, Budget
-from pynYNAB.schema.catalog import BudgetVersion, Catalog
-from pynYNAB.scripts.config import get_logger
-from pynYNAB.utils import chunk
+from connection import nYnabConnection
+from schema.Entity import Base
+from schema.budget import Payee, Transaction, Budget
+from schema.catalog import BudgetVersion, Catalog
+from scripts.config import get_logger
+from utils import chunk
 
 logger = logging.getLogger('pynYNAB')
 

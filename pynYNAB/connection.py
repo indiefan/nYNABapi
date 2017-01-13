@@ -6,9 +6,9 @@ from time import sleep
 import requests
 from requests.cookies import RequestsCookieJar
 
-from pynYNAB.KeyGenerator import generateuuid
-from pynYNAB.schema.Entity import ComplexEncoder
-from pynYNAB.utils import rate_limited
+from KeyGenerator import generateuuid
+from schema.Entity import ComplexEncoder
+from utils import rate_limited
 
 
 class NYnabConnectionError(Exception):

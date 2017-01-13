@@ -14,8 +14,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm.base import ONETOMANY, MANYTOMANY
 
-from pynYNAB import KeyGenerator
-from pynYNAB.schema.types import nYnabGuid, AmountType
+from .. import KeyGenerator
+from types import nYnabGuid, AmountType
 
 logger = logging.getLogger('pynYNAB')
 from sqlalchemy import inspect
@@ -225,7 +225,16 @@ class Entity(BaseModel):
             if column.name in entityDict and entityDict[column.name] is not None:
                 columntype = column.type.__class__
                 if columntype == Date:
-                    modified_dict[column.name] = datetime.strptime(entityDict[column.name], '%Y-%m-%d').date()
+                    raw_date = entityDict[column.name]
+                    date = datetime.now()
+                    try:
+                        date = datetime.strptime(raw_date, '%Y-%m-%d').date()
+                    except:
+                        try:
+                            date = datetime.strptime(raw_date[:raw_date.index('T')], '%Y-%m-%d').date()
+                        except:
+                            pass
+                    modified_dict[column.name] = date
                 elif columntype == nYnabGuid:
                     modified_dict[column.name] = UUID(entityDict[column.name].split('/')[-1])
                 elif columntype == AmountType:
